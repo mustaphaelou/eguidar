@@ -1,11 +1,15 @@
 import Link from "next/link"
 
-import { DeliveryTruck02Icon, Money01Icon } from "@hugeicons/core-free-icons"
+import {
+  CallIcon,
+  DeliveryTruck02Icon,
+  Money01Icon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { Logo } from "@/components/storefront/logo"
 import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
-import { site } from "@/lib/site"
+import { assurancePiedDePage, site } from "@/lib/site"
+import type { NavCategory } from "@/lib/use-cases/storefront"
 import { cn } from "@/lib/utils"
 
 type LienDePied = { href: string; libelle: string }
@@ -16,56 +20,67 @@ type SectionDePied = {
 }
 type ColonneDePied = { id: string; sections: readonly SectionDePied[] }
 
-const colonnesDuPied: readonly ColonneDePied[] = [
-  {
-    id: "boutique",
-    sections: [
-      {
-        id: "la-boutique",
-        titre: "La boutique",
-        liens: [
-          { href: "/", libelle: "Accueil" },
-          { href: "/produits", libelle: "Tous les produits" },
-        ],
-      },
-    ],
-  },
-  {
-    id: "compte",
-    sections: [
-      {
-        id: "mon-compte",
-        titre: "Mon compte",
-        liens: [
-          { href: "/commandes", libelle: "Mes commandes" },
-          { href: "/panier", libelle: "Mon panier" },
-          { href: "/profil", libelle: "Mon profil" },
-        ],
-      },
-    ],
-  },
-  {
-    id: "services",
-    sections: [
-      {
-        id: "aide",
-        titre: "Aide",
-        liens: [
-          { href: "/faq", libelle: "FAQ" },
-          { href: "/contact", libelle: "Contact" },
-        ],
-      },
-      {
-        id: "la-maison",
-        titre: "La maison",
-        liens: [
-          { href: "/a-propos", libelle: "À propos" },
-          { href: "/blog", libelle: "Blog" },
-        ],
-      },
-    ],
-  },
-]
+function colonnesDuPied(
+  structures: readonly NavCategory[]
+): readonly ColonneDePied[] {
+  return [
+    ...(structures.length > 0
+      ? [
+          {
+            id: "boutique",
+            sections: [
+              {
+                id: "la-boutique",
+                titre: "La boutique",
+                liens: [
+                  { href: "/produits", libelle: "Tous les produits" },
+                  ...structures.map((structure) => ({
+                    href: `/categorie/${structure.slug}`,
+                    libelle: structure.name,
+                  })),
+                ],
+              },
+            ],
+          },
+        ]
+      : []),
+    {
+      id: "compte",
+      sections: [
+        {
+          id: "mon-compte",
+          titre: "Mon compte",
+          liens: [
+            { href: "/commandes", libelle: "Mes commandes" },
+            { href: "/panier", libelle: "Mon panier" },
+            { href: "/profil", libelle: "Mon profil" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "services",
+      sections: [
+        {
+          id: "aide",
+          titre: "Aide",
+          liens: [
+            { href: "/faq", libelle: "FAQ" },
+            { href: "/contact", libelle: "Contact" },
+          ],
+        },
+        {
+          id: "la-maison",
+          titre: "La maison",
+          liens: [
+            { href: "/a-propos", libelle: "À propos" },
+            { href: "/blog", libelle: "Blog" },
+          ],
+        },
+      ],
+    },
+  ]
+}
 
 const liensLegaux: readonly LienDePied[] = [
   { href: "/conditions", libelle: "Conditions & livraison" },
@@ -94,7 +109,11 @@ function SectionDuPied({ section }: { section: SectionDePied }) {
   )
 }
 
-export function StorefrontFooter() {
+export function StorefrontFooter({
+  structures,
+}: {
+  structures: readonly NavCategory[]
+}) {
   return (
     <footer
       aria-labelledby="pied-de-page-titre"
@@ -104,39 +123,32 @@ export function StorefrontFooter() {
         Pied de page
       </h2>
       <div className={cn(CONTENEUR_BOUTIQUE, "py-10")}>
-        <div className="flex flex-col gap-8 md:flex-row md:gap-16">
-          <div className="shrink-0">
-            <Logo />
-            <p className="mt-2 max-w-xs text-xs text-muted-foreground">
-              {site.tagline}
-            </p>
-          </div>
-          <nav
-            aria-label="Liens du pied de page"
-            className="grid flex-1 gap-8 sm:grid-cols-2 md:grid-cols-3"
-          >
-            {colonnesDuPied.map((colonne) => (
-              <div key={colonne.id} className="flex flex-col gap-6">
-                {colonne.sections.map((section) => (
-                  <SectionDuPied key={section.id} section={section} />
-                ))}
-              </div>
-            ))}
-          </nav>
-        </div>
+        <nav
+          aria-label="Liens du pied de page"
+          className="grid gap-8 sm:grid-cols-2 md:grid-cols-3"
+        >
+          {colonnesDuPied(structures).map((colonne) => (
+            <div key={colonne.id} className="flex flex-col gap-6">
+              {colonne.sections.map((section) => (
+                <SectionDuPied key={section.id} section={section} />
+              ))}
+            </div>
+          ))}
+        </nav>
 
-        <div className="mt-8 border-t border-border pt-6 text-xs text-muted-foreground">
-          <div className="flex flex-col gap-2.5">
+        <section
+          data-slot="bande-assurance"
+          className="mt-8 text-xs text-muted-foreground"
+        >
+          <p>{site.tagline}</p>
+          <div className="mt-4 flex flex-col gap-2.5">
             <p className="flex items-start gap-2.5">
               <HugeiconsIcon
                 icon={Money01Icon}
                 strokeWidth={2}
                 className="mt-0.5 size-4 shrink-0"
               />
-              <span>
-                Paiement à la livraison. TVA 20% incluse sur tous les prix
-                affichés.
-              </span>
+              <span>{assurancePiedDePage.paiement}</span>
             </p>
             <p className="flex items-start gap-2.5">
               <HugeiconsIcon
@@ -144,17 +156,30 @@ export function StorefrontFooter() {
                 strokeWidth={2}
                 className="mt-0.5 size-4 shrink-0"
               />
+              <span>{assurancePiedDePage.livraison}</span>
+            </p>
+            <p className="flex items-start gap-2.5">
+              <HugeiconsIcon
+                icon={CallIcon}
+                strokeWidth={2}
+                className="mt-0.5 size-4 shrink-0"
+              />
               <span>
-                Livraison rapide partout au Maroc. Frais selon la ville, offerte
-                dès un certain montant.
+                {assurancePiedDePage.telephone}{" "}
+                <a
+                  href={`tel:+${site.contactPhoneDigits}`}
+                  className="text-link underline"
+                >
+                  {site.contactPhone}
+                </a>
               </span>
             </p>
           </div>
-        </div>
+        </section>
 
         <div
           data-slot="rangée-légale"
-          className="mt-6 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground"
+          className="mt-8 flex flex-wrap items-center gap-x-2 border-t border-border pt-6 text-xs text-muted-foreground"
         >
           <span>
             © {site.name} — Le code est sous{" "}
