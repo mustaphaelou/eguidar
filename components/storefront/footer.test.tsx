@@ -1,12 +1,30 @@
 import { renderToReadableStream } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
+import { assurancePiedDePage, site } from "@/lib/site"
+
 import { StorefrontFooter } from "./footer"
 
 async function rendreLePied(): Promise<string> {
   const flux = await renderToReadableStream(<StorefrontFooter />)
   await flux.allReady
   return new Response(flux).text()
+}
+
+function bandeAssurance(html: string): string {
+  return (
+    html
+      .split('data-slot="bande-assurance"')[1]
+      ?.split('data-slot="rangée-légale"')[0] ?? ""
+  )
+}
+
+function rangeeLegale(html: string): string {
+  return html.split('data-slot="rangée-légale"')[1] ?? ""
+}
+
+function echapper(texte: string): string {
+  return texte.replaceAll("'", "&#x27;")
 }
 
 describe("StorefrontFooter — les pages de la boutique", () => {
@@ -57,5 +75,31 @@ describe("StorefrontFooter — les pages de la boutique", () => {
     )
 
     expect(new Set(destinations).size).toBe(destinations.length)
+  })
+
+  it("porte le tagline, les deux promesses et le téléphone dans la bande", async () => {
+    const bande = bandeAssurance(await rendreLePied())
+
+    expect(bande).toContain(echapper(site.tagline))
+    expect(bande).toContain(assurancePiedDePage.paiement)
+    expect(bande).toContain(assurancePiedDePage.livraison)
+    expect(bande).toContain(assurancePiedDePage.telephone)
+    expect(bande).toContain(site.contactPhone)
+    expect(bande).toContain(`href="tel:+${site.contactPhoneDigits}"`)
+  })
+
+  it("ne promet pas la livraison offerte et laisse les conditions à la rangée légale", async () => {
+    const html = await rendreLePied()
+
+    expect(html).not.toContain("offerte dès un certain montant")
+    expect(bandeAssurance(html)).not.toContain('href="/conditions"')
+    expect(rangeeLegale(html)).toContain('href="/conditions"')
+  })
+
+  it("ne rend plus le Logo mais garde le tagline", async () => {
+    const html = await rendreLePied()
+
+    expect(html).not.toContain("/brand/eguidar-logo.svg")
+    expect(html).toContain(echapper(site.tagline))
   })
 })

@@ -182,3 +182,25 @@ test.describe("22. le contraste du vert du Récapitulatif", () => {
     ).toBeGreaterThanOrEqual(4.5)
   })
 })
+
+test.describe("24. les filets de la bande d'assurance du Pied de page", () => {
+  test("24. un seul filet sépare la bande de la rangée légale", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const bande = page.locator('[data-slot="bande-assurance"]')
+    await expect(bande).toBeVisible()
+
+    const filetAuDessusDeLaBande = await bande.evaluate(
+      (element) => getComputedStyle(element).borderTopWidth
+    )
+    const filetDeLaRangeeLegale = await rangeeLegale(page).evaluate(
+      (element) => getComputedStyle(element).borderTopWidth
+    )
+
+    expect(filetAuDessusDeLaBande).toBe("0px")
+    expect(parseFloat(filetDeLaRangeeLegale)).toBeGreaterThan(0)
+  })
+})
