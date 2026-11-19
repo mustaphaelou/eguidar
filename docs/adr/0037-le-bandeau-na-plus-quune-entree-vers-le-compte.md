@@ -101,3 +101,16 @@ menu mobile » s'appuyait sur deux raisons : le Compte ne serait atteignable que
 toujours ; la seconde ne se lit plus, puisque c'est maintenant le déclencheur du Panier qui referme
 l'Aperçu, à toutes les tailles. La décision qui l'emporte est écrite dans
 [0051](0051-le-bandeau-ne-porte-plus-les-pages-de-la-boutique.md).
+
+## Amendement — La section « Mon compte » du Pied de page (#1086, 2026-11-18)
+
+Aucune phrase de la décision n'est réécrite. Le Pied de page porte désormais une section « Mon
+compte » — *Mes commandes*, *Mon panier*, *Mon profil* — à côté de « La boutique », « Aide » et « La
+maison ». La phrase « Le Compte a une surface, la même depuis n'importe quelle page » ne vaut que
+pour le Bandeau de navigation : elle réglait la place du Compte **dans la barre**, pas le nombre de
+surfaces de la boutique. Le Bandeau ne gagne aucun contrôle du Compte et garde son unique entrée, le
+groupe « Mon compte » de l'Aperçu du Panier, dans l'ordre « Commandes », « Mon profil », puis
+« Connexion » ou « Déconnexion ». Le Pied de page n'ouvre donc pas cette décision : sa section est
+une destination d'annuaire rendue dans le HTML serveur, sans état, sans feuille et sans contrôle de
+barre. C'est [0064](0064-le-pied-de-page-porte-le-catalogue.md) qui décide ce que le Pied de page
+porte ; le présent amendement situe seulement sa section « Mon compte » par rapport au Bandeau.
