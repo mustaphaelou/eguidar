@@ -633,7 +633,7 @@ sous-domaine s'arrête sur l'erreur 503 de l'origine.
 _Avoid_: domaine principal, canonical domain
 
 **Logo**:
-Le lockup complet de la boutique — « eguidar. » au-dessus du « COM » serif et de son filet — affiché dans le Bandeau de navigation et le **Pied de page**.
+Le lockup complet de la boutique — « eguidar. » au-dessus du « COM » serif et de son filet — affiché dans le Bandeau de navigation, et non dans le **Pied de page**.
 _Avoid_: logotype, symbole, marque (réservée aux marques de produits)
 
 **Icône de site**:

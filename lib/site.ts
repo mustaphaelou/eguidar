@@ -18,6 +18,14 @@ export const site = {
     "Bonjour Eguidar, j'ai une question concernant votre boutique.",
 } as const
 
+export const assurancePiedDePage = {
+  paiement:
+    "Paiement à la livraison. TVA 20% incluse sur tous les prix affichés.",
+  livraison:
+    "Livraison rapide partout au Maroc. Frais selon la Ville de livraison.",
+  telephone: "Une question ? Appelez-nous au",
+} as const
+
 export const logo = {
   src: "/brand/eguidar-logo.svg",
   width: 1352,

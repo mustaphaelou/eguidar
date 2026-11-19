@@ -43,13 +43,24 @@ export const REGISTRE_STATUTS = {
   },
 } as const satisfies Record<OrderStatus, SpecStatut>
 
-const TRANSITIONS_AUTORISÉES: Readonly<
+export const TRANSITIONS_TOUTES_VOIES: Readonly<
   Record<OrderStatus, readonly OrderStatus[]>
 > = Object.freeze({
   pending: Object.freeze(["confirmed", "cancelled"] as const),
   confirmed: Object.freeze(["shipped", "cancelled"] as const),
   shipped: Object.freeze(["delivered", "returned"] as const),
   delivered: Object.freeze(["returned"] as const),
+  cancelled: Object.freeze([] as const),
+  returned: Object.freeze([] as const),
+})
+
+export const TRANSITIONS_ADMINISTRATION: Readonly<
+  Record<OrderStatus, readonly OrderStatus[]>
+> = Object.freeze({
+  pending: Object.freeze(["confirmed", "cancelled"] as const),
+  confirmed: Object.freeze(["shipped", "cancelled"] as const),
+  shipped: Object.freeze(["delivered"] as const),
+  delivered: Object.freeze([] as const),
   cancelled: Object.freeze([] as const),
   returned: Object.freeze([] as const),
 })
@@ -69,13 +80,13 @@ export function peutTransitionner(
   statut: OrderStatus,
   cible: OrderStatus
 ): boolean {
-  return TRANSITIONS_AUTORISÉES[statut].includes(cible)
+  return TRANSITIONS_TOUTES_VOIES[statut].includes(cible)
 }
 
 export function transitionsDisponibles(
   statut: OrderStatus
 ): readonly OrderStatus[] {
-  return TRANSITIONS_AUTORISÉES[statut]
+  return TRANSITIONS_ADMINISTRATION[statut]
 }
 
 export function estStatut(token: string): token is OrderStatus {
