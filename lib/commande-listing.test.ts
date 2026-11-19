@@ -115,7 +115,7 @@ describe("buildCommandeListingUrl", () => {
         pageSize: 20,
       })
     ).toBe(
-      "/admin/commandes?page=3&pageSize=20&statut=pending%2Creturned&q=alix&tri=total&sens=asc"
+      "/admin/commandes?page=3&pageSize=20&q=alix&statut=pending%2Creturned&tri=total&sens=asc"
     )
   })
 
