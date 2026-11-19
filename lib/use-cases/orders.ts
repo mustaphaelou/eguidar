@@ -1,13 +1,15 @@
 import { z } from "zod"
 
 import { enregistrerFaits } from "@/lib/automations/evenements"
-import type { CommandeListingParams } from "@/lib/commande-listing"
+import {
+  COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
+  type CommandeListingParams,
+} from "@/lib/commande-listing"
 import { prisma } from "@/lib/db"
 import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
-import { peutTransitionner } from "@/lib/statut-de-commande"
-import { PAGE_SIZES } from "@/lib/table-config"
+import { transitionsDisponibles } from "@/lib/statut-de-commande"
 import { lirePanierClient } from "@/lib/panier"
 import {
   deliveryAddressField,
@@ -458,7 +460,7 @@ export async function updateOrderStatus(
     include: { items: true, user: { select: { email: true } } },
   })
   if (!existing) throw new OrderNotFoundError()
-  if (!peutTransitionner(existing.status, nextStatus)) {
+  if (!transitionsDisponibles(existing.status).includes(nextStatus)) {
     throw new InvalidOrderTransitionError(existing.status, nextStatus)
   }
 
@@ -468,7 +470,7 @@ export async function updateOrderStatus(
       include: { items: true },
     })
     if (!fresh) throw new OrderNotFoundError()
-    if (!peutTransitionner(fresh.status, nextStatus)) {
+    if (!transitionsDisponibles(fresh.status).includes(nextStatus)) {
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
 
@@ -589,7 +591,7 @@ async function runListAdminOrders(
   const orderBy: Prisma.OrderOrderByWithRelationInput =
     params?.tri === "total" ? { totalPayable: sens } : { createdAt: sens }
   const page = params?.page ?? 1
-  const pageSize = params?.pageSize ?? PAGE_SIZES[0]
+  const pageSize = params?.pageSize ?? COMMANDE_LISTING_PAGE_SIZE_DEFAULT
 
   const [orders, totalCount] = await prisma.$transaction([
     prisma.order.findMany({

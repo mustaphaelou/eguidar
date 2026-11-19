@@ -4,6 +4,144 @@ A French-language Moroccan e-commerce storefront (eguidar.com): catalog with cat
 
 L'habillage reprend celui d'apple.com : la palette, la typographie et le Voile dépoli viennent de là, et le site n'a qu'un seul thème, le clair. Une couleur qui change d'apparence selon la surface qui la porte est une couleur qui n'existe pas.
 
+## Index
+
+- **Bandeau de navigation**
+- **Pied de page**
+- **Voile dépoli**
+- **Voile sombre**
+- **Livraison**
+- **Ville de livraison**
+- **Langage d'URL de la Ville**
+- **Frais de livraison**
+- **Seuil de livraison offerte**
+- **Devis**
+- **Devis chargé**
+- **Devis projeté**
+- **Sélection du Devis**
+- **Devis périmé**
+- **Précédence du Devis**
+- **Lecture du Devis**
+- **Récapitulatif de paiement**
+- **Paiement à la livraison**
+- **Panier**
+- **Article du panier**
+- **Page du Panier**
+- **Aperçu du Panier**
+- **Propriétaire du panier**
+- **Panier courant**
+- **Refus du panier**
+- **Socle**
+- **Données de démonstration**
+- **Catalogue**
+- **Lot d'import**
+- **Ligne d'import**
+- **Vérification du Lot**
+- **Structure**
+- **Position dans la Structure**
+- **Refus de la Structure**
+- **Marche de la Structure**
+- **Structure hors arbre**
+- **Lecture de la Structure**
+- **Recherche**
+- **Suggestion de produit**
+- **Moteur de recherche**
+- **Tranche de prix**
+- **Filtre de recherche**
+- **Option de filtre**
+- **Filtres actifs**
+- **Document d'index**
+- **Produit**
+- **Produit sans Structure**
+- **Image produit**
+- **Registre des Images produit**
+- **Texte alternatif**
+- **Bibliothèque des médias**
+- **Brouillon d'Image produit**
+- **Galerie produit**
+- **Suppression en attente**
+- **Variante**
+- **Barre d'achat**
+- **Prix courant**
+- **Carte produit**
+- **Carte d'indicateur**
+- **Mise en avant**
+- **Panneau**
+- **Bande**
+- **Compte client**
+- **Visiteur**
+- **Client**
+- **Connexion**
+- **Connexion sociale**
+- **Connexion par mot de passe**
+- **Connexion par code**
+- **Moyen de connexion**
+- **Inscription**
+- **Destination post-connexion**
+- **Vérification de l'e-mail**
+- **Réinitialisation du mot de passe**
+- **Test de sécurité**
+- **Envoi protégé**
+- **Refus d'authentification**
+- **Déconnexion**
+- **Session inactive**
+- **Session hors durée absolue**
+- **Session courante**
+- **Lien de connexion**
+- **Administration**
+- **Cadre de l'Administration**
+- **Bandeau de l'Administration**
+- **Tableau de bord**
+- **Liste des Commandes**
+- **Commande**
+- **Statut de commande**
+- **Transition de statut**
+- **Changement de statut**
+- **Réapprovisionnement**
+- **E-mail de commande**
+- **Total à payer**
+- **Retour**
+- **Ligne du Retour**
+- **État de la Ligne du Retour**
+- **Motif de Retour**
+- **Code de refus**
+- **Encaissement**
+- **Remboursement**
+- **Chiffre d'affaires encaissé**
+- **Chiffre d'affaires net**
+- **FAQ**
+- **Données structurées**
+- **Hôte canonique**
+- **Logo**
+- **Icône de site**
+- **Blog**
+- **Article de blog**
+- **Chapô**
+- **Intertitre**
+- **Fragment d'article**
+- **Thème**
+- **Statut de publication**
+- **Produit lié**
+- **Article lié**
+- **Après-écriture**
+- **Conséquence durable**
+- **Conséquence non durable**
+- **Charge**
+- **Fait**
+- **Plan**
+- **Portée**
+- **Automatisation**
+- **Événement d'automatisation**
+- **Exécution d'automatisation**
+- **Règle d'automatisation**
+- **Décision d'automatisation**
+- **Simulation d'automatisation**
+- **Réessai manuel**
+- **File morte**
+- **Défense du dépôt**
+- **Porte de fusion**
+- **Docteur de la Porte de fusion**
+
 ## Language
 
 **Bandeau de navigation**:
@@ -633,7 +771,7 @@ sous-domaine s'arrête sur l'erreur 503 de l'origine.
 _Avoid_: domaine principal, canonical domain
 
 **Logo**:
-Le lockup complet de la boutique — « eguidar. » au-dessus du « COM » serif et de son filet — affiché dans le Bandeau de navigation et le **Pied de page**.
+Le lockup complet de la boutique — « eguidar. » au-dessus du « COM » serif et de son filet — affiché dans le Bandeau de navigation, et non dans le **Pied de page**.
 _Avoid_: logotype, symbole, marque (réservée aux marques de produits)
 
 **Icône de site**:
