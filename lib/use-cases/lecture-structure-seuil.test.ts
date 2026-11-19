@@ -159,6 +159,15 @@ const SITES_NOMMES: ExceptionLecture[] = [
       "le nom de la catégorie dans les Documents d'index des Produits d'une branche de destination d'une Structure supprimée, résolue après le commit : le pointeur d'une seule rangée, la topologie restant à la Marche",
   },
   {
+    chemin: "lib/use-cases/commande-stock.ts",
+    voie: "relation",
+    extrait: `include: ${FORME.champ}`,
+    declaration: "lireProduitsTouches",
+    herite: false,
+    raison:
+      "le nom de la catégorie du Produit dont le stock vient de changer, pour son Document d'index capturé dans la transaction : le pointeur d'une seule rangée, pas sa place dans l'arbre",
+  },
+  {
     chemin: MODULE_LECTURE,
     voie: "delegue",
     extrait: `prisma.${FORME.delegue}.findMany`,
@@ -273,10 +282,10 @@ describe("Lecture de la Structure — le seuil de lecture, site par site", () =>
 
     const heritees = SITES_NOMMES.filter(({ herite }) => herite)
     expect(heritees.length).toBe(2)
-    expect(SITES_NOMMES).toHaveLength(18)
-    expect(SITES_NOMMES).toHaveLength(heritees.length + 16)
+    expect(SITES_NOMMES).toHaveLength(19)
+    expect(SITES_NOMMES).toHaveLength(heritees.length + 17)
 
-    const attenduesParVoie = { relation: 11, delegue: 7 }
+    const attenduesParVoie = { relation: 12, delegue: 7 }
     for (const voie of ["relation", "delegue"] as const) {
       expect(
         SITES_NOMMES.filter((site) => site.voie === voie).length,

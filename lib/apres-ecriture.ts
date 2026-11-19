@@ -56,20 +56,12 @@ export interface PlanApresEcriture<
   consequences: C[]
 }
 
-export interface ProduitTouche {
-  id: string
-  slug: string
-  categoryId: string | null
-}
-
 export type StatutCommande = Charge<"commande.statut.changee">["statut"]
 
-export type EffetCommande = "email" | "invalidation-cache" | "purge-catalogue"
+export type EffetCommande = "email"
 
 export interface ChargesCommande {
   email: { snapshot: OrderEmailSnapshot; statut?: StatutCommande }
-  "invalidation-cache": { commandeId: string }
-  "purge-catalogue": { produits: readonly ProduitTouche[] }
 }
 
 export type ConsequenceCommande = {
@@ -81,14 +73,6 @@ export type ConsequenceCommande = {
 export type ConsequenceCommandeEmail = Extract<
   ConsequenceCommande,
   { effet: "email" }
->
-export type ConsequenceCommandeInvalidation = Extract<
-  ConsequenceCommande,
-  { effet: "invalidation-cache" }
->
-export type ConsequenceCommandePurge = Extract<
-  ConsequenceCommande,
-  { effet: "purge-catalogue" }
 >
 
 export type PlanCommande = PlanApresEcriture<ConsequenceCommande>
@@ -266,28 +250,6 @@ const commandeCreee: DeclarationPour<"commande.creee"> = (f) => {
           payload: { snapshot: f.snapshot },
         }
       ),
-      consequence(
-        "invalidation-cache",
-        { type: "commande", id: commandeId },
-        f.messageInvalidation ??
-          `[order] invalidation du cache non effectuée pour ${commandeId}`,
-        {
-          durable: false,
-          reparation: "TTL",
-          payload: { commandeId },
-        }
-      ),
-      consequence(
-        "purge-catalogue",
-        { type: "commande", id: commandeId },
-        f.messagePurge ??
-          `[order] purge des documents du catalogue non effectuée pour ${commandeId}`,
-        {
-          durable: false,
-          reparation: "TTL",
-          payload: { produits: f.produitsDrainés ?? [] },
-        }
-      ),
     ],
   }
 }
@@ -313,28 +275,6 @@ const commandeStatutChangee: DeclarationPour<"commande.statut.changee"> = (
           action: "email.commande-statut",
           durable: true,
           payload: { snapshot: f.snapshot, statut: f.statut },
-        }
-      ),
-      consequence(
-        "invalidation-cache",
-        { type: "commande", id: commandeId },
-        f.messageInvalidation ??
-          `[order] invalidation du cache non effectuée pour ${commandeId}`,
-        {
-          durable: false,
-          reparation: "TTL",
-          payload: { commandeId },
-        }
-      ),
-      consequence(
-        "purge-catalogue",
-        { type: "commande", id: commandeId },
-        f.messagePurge ??
-          `[order] purge des documents du catalogue non effectuée pour ${commandeId}`,
-        {
-          durable: false,
-          reparation: "TTL",
-          payload: { produits: f.produitsRéapprovisionnés ?? [] },
         }
       ),
     ],
@@ -649,13 +589,15 @@ const varianteStockChangee: DeclarationPour<"variante.stock.changee"> = (f) => {
   const produitId = String(f.produitId)
   const identite: IdentiteProduitCatalogue = {
     id: produitId,
-    slug: String(f.slug ?? ""),
-    categoryId: f.categoryId ?? null,
+    slug: f.slug,
+    categoryId: f.categoryId,
   }
   return {
     faits: [
       fait("variante.stock.changee", "produit", produitId, {
         produitId,
+        slug: f.slug,
+        categoryId: f.categoryId,
       }),
     ],
     consequences: [
@@ -673,6 +615,16 @@ const varianteStockChangee: DeclarationPour<"variante.stock.changee"> = (f) => {
         "invalidation-cache",
         { type: "produit", id: produitId },
         `invalidation du cache pour ${produitId}`,
+        {
+          durable: false,
+          reparation: "TTL",
+          payload: { produit: identite },
+        }
+      ),
+      consequence(
+        "purge-catalogue",
+        { type: "produit", id: produitId },
+        `purge du bord après changement de stock ${produitId}`,
         {
           durable: false,
           reparation: "TTL",
@@ -939,20 +891,14 @@ const REGISTRE: { [G in GenreEcriture]: DeclarationPour<G> } = {
 export type FaitsCommandeCreee = {
   commandeId: string | number
   snapshot: OrderEmailSnapshot
-  produitsDrainés?: readonly ProduitTouche[]
   messageEmail?: string
-  messageInvalidation?: string
-  messagePurge?: string
 }
 
 export type FaitsCommandeStatutChangee = {
   commandeId: string | number
   snapshot: OrderEmailSnapshot
   statut: StatutCommande
-  produitsRéapprovisionnés?: readonly ProduitTouche[]
   messageEmail?: string
-  messageInvalidation?: string
-  messagePurge?: string
 }
 
 export type FaitsProduitEnregistre = {
@@ -998,8 +944,8 @@ export type FaitsProduitSupprimeLot = {
 
 export type FaitsVarianteStockChangee = {
   produitId: string | number
-  slug?: string
-  categoryId?: string | null
+  slug: string
+  categoryId: string | null
 }
 
 export type FaitsStructureCreee = {
@@ -1152,6 +1098,11 @@ export function identiteDeRegle(
 export const FAITS_POUR_REGLES: Partial<
   Record<GenreEcriture, FaitsApresEcriture>
 > = {
+  "variante.stock.changee": {
+    produitId: "produit-modele",
+    slug: "produit-modele",
+    categoryId: null,
+  },
   "produit.enregistre": {
     produitId: "produit-modele",
     slug: "produit-modele",

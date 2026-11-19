@@ -375,28 +375,39 @@ describe("l'adaptateur Catalogue unitaire", () => {
     ).toBe(true)
   })
 
-  it("déclare et exécute le changement de stock : réindexation puis invalidation", async () => {
+  it("déclare et exécute le changement de stock : réindexation, invalidation puis purge", async () => {
     const { appels, effets } = portsEnregistreurs()
-    const lecture = lecturesEnregistreuses()
     const journal = creerJournalEffetsMemoire()
     const plan = declarerApresEcriture("variante.stock.changee", {
       produitId: PRODUIT,
       slug: SLUG,
       categoryId: CATEGORIE,
     })
+    const documents = vi.fn(async () => [DOCUMENT])
+    const evenementStock: CatalogueEventProduct = {
+      id: PRODUIT,
+      slug: SLUG,
+      previousSlug: SLUG_PRECEDENT,
+      categoryChain: [{ slug: "racine" }, { slug: "telephones" }],
+    }
+    const evenements = vi.fn(async () => [evenementStock])
 
     expect(evenementsDuPlan(plan)).toEqual([
       "reindexation",
       "invalidation-cache",
+      "purge-catalogue",
     ])
 
-    await executer(plan, effets, lecture.lectures, journal)
+    await executer(plan, effets, { documents, evenements }, journal)
 
     expect(appels).toEqual([
       { port: "reindexation", arguments: [[INDEXABLE]] },
-      { port: "invalidation-cache", arguments: [EVENEMENT] },
+      { port: "invalidation-cache", arguments: [evenementStock] },
+      { port: "purge-catalogue", arguments: [evenementStock] },
     ])
-    expect(journal.mesures).toHaveLength(2)
+    expect(documents).toHaveBeenCalledOnce()
+    expect(evenements).toHaveBeenCalledOnce()
+    expect(journal.mesures).toHaveLength(3)
     expect(
       journal.mesures.every((mesure) => mesure.resultat === "succes")
     ).toBe(true)

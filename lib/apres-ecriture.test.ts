@@ -62,34 +62,27 @@ describe("la déclaration de Commande", () => {
       statut: "shipped",
     })
 
-  it("ordonne les trois effets de la création : e-mail, invalidation, purge", () => {
-    expect(effets(creation())).toEqual([
-      "email",
-      "invalidation-cache",
-      "purge-catalogue",
-    ])
+  it("ne déclare que l'effet e-mail pour la création", () => {
+    expect(effets(creation())).toEqual(["email"])
+    expect(creation().consequences[0]!.payload).toEqual({ snapshot: SNAPSHOT })
   })
 
-  it("ordonne les mêmes trois effets pour le changement de statut", () => {
-    expect(effets(changementDeStatut())).toEqual([
-      "email",
-      "invalidation-cache",
-      "purge-catalogue",
-    ])
+  it("ne déclare que l'effet e-mail pour le changement de statut", () => {
+    expect(effets(changementDeStatut())).toEqual(["email"])
+    expect(changementDeStatut().consequences[0]!.payload).toEqual({
+      snapshot: SNAPSHOT,
+      statut: "shipped",
+    })
   })
 
-  it("garde l'e-mail durable et répare les deux autres par le TTL", () => {
+  it("garde l'e-mail durable et sans réparation", () => {
     const plan = creation()
 
     expect(plan.consequences.map((consequence) => consequence.durable)).toEqual(
-      [true, false, false]
+      [true]
     )
     for (const consequence of plan.consequences) {
-      if (consequence.durable) {
-        expect(consequence.reparation).toBeUndefined()
-      } else {
-        expect(consequence.reparation).toBe("TTL")
-      }
+      expect(consequence.reparation).toBeUndefined()
     }
   })
 
@@ -660,33 +653,47 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
 })
 
 describe("la déclaration de variante.stock.changee", () => {
-  it("réindexe durablement puis invalide le cache, réparé par le TTL", () => {
+  it("réindexe durablement puis invalide et purge le cache, réparées par le TTL", () => {
     const plan = declarerApresEcriture("variante.stock.changee", {
       produitId: PRODUIT,
       slug: SLUG,
       categoryId: CATEGORIE,
     })
+    const identite = { id: PRODUIT, slug: SLUG, categoryId: CATEGORIE }
 
     expect(plan.faits).toEqual([
       {
         declencheur: "variante.stock.changee",
         entite: "produit",
         identifiant: PRODUIT,
-        charge: { produitId: PRODUIT },
+        charge: { produitId: PRODUIT, slug: SLUG, categoryId: CATEGORIE },
       },
     ])
-    expect(effets(plan)).toEqual(["reindexation", "invalidation-cache"])
+    expect(effets(plan)).toEqual([
+      "reindexation",
+      "invalidation-cache",
+      "purge-catalogue",
+    ])
     expect(durable(plan)).toEqual(["reindexation"])
     expect(actions(plan)).toEqual(["index.produit"])
-
-    const invalidation = plan.consequences.find(
-      (consequence) => consequence.effet === "invalidation-cache"
+    expect(plan.consequences.map((consequence) => consequence.payload)).toEqual(
+      [{ produits: [identite] }, { produit: identite }, { produit: identite }]
     )
+
+    const invalidation = plan.consequences[1]!
+    const purge = plan.consequences[2]!
     expect(invalidation).toMatchObject({
       durable: false,
       reparation: "TTL",
       entite: { type: "produit", id: PRODUIT },
     })
+    expect(purge).toMatchObject({
+      durable: false,
+      reparation: "TTL",
+      entite: { type: "produit", id: PRODUIT },
+    })
+    expect(invalidation.action).toBeUndefined()
+    expect(purge.action).toBeUndefined()
   })
 })
 
@@ -843,6 +850,21 @@ describe("les écritures de maintenance sans conséquence durable", () => {
 })
 
 describe("les Règles par défaut dérivées de variante.stock.changee", () => {
+  it("ne dérive qu'une seule Règle des trois conséquences du stock", () => {
+    const plan = declarerApresEcriture("variante.stock.changee", {
+      produitId: PRODUIT,
+      slug: SLUG,
+      categoryId: CATEGORIE,
+    })
+
+    expect(plan.consequences).toHaveLength(3)
+    expect(
+      reglesParDefaut().filter(
+        (regle) => regle.declencheur === "variante.stock.changee"
+      )
+    ).toHaveLength(1)
+  })
+
   it("reprend l'identité indexation-stock pour la seule réindexation durable", () => {
     expect(
       reglesParDefaut()

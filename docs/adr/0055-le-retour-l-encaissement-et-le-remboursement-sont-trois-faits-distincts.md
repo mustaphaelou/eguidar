@@ -50,3 +50,19 @@ Une Commande Livrée portait trois choses dans un seul Statut de commande : la m
 - Une rétractation demandée plus de sept jours après `Order.deliveredAt` est persistée en `goodwill`.
 - Un refus part d'un Retour `requested` et le laisse en place ; il n'écrit que `status`, `refusalCode`, `refusalNote` et `updatedAt`.
 - Déclarer ou refuser un Retour n'écrit ni `ProductVariant.stock`, ni `Order.status`, ni une ligne de `Payment` ou de `Refund`.
+
+## Amendement — Retournée n'est atteinte que par la réception (2026-11-19)
+
+La **Transition de statut** se lit désormais dans deux tables. `TRANSITIONS_AUTORISÉES` est la table
+large, celle de tous les chemins : elle nomme `returned` depuis `shipped` et `delivered`.
+`TRANSITIONS_OFFERTES` est la table étroite, celle que les boutons de l'Administrateur proposent :
+elle ne nomme jamais `returned`. `peutTransitionner` et `transitionsDisponibles` lisent la table
+étroite ; la clôture de la réception lit la table large par `peutCloreParRetour`. La table étroite est
+un sous-ensemble de la large, épinglé pour les trente-six paires.
+
+`updateOrderStatus` refuse donc `Retournée` et le verrou de la Commande est la première instruction
+de sa transaction. Les quatre chemins qui touchent une Commande — transition manuelle, déclaration
+d'un Retour, refus d'un Retour et réception — passent par la même entrée `verrouillerCommande`.
+Le chemin du Retour ne restocke plus : la réception applique les unités revendables reçues par le
+seam de stock, sur les deux branches, partielle et clôturante. Le passage à `Retournée` n'écrit aucun
+stock supplémentaire. Les trois faits restent distincts ; le corps de la décision n'est pas réécrit.

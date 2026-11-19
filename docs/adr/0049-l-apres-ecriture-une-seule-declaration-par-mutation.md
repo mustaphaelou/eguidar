@@ -231,3 +231,25 @@ qu'elle fut écrite.
   `ville.supprimee`, `livraison.reglee` et `image.texte-alternatif` rendent un plan typé (`PlanLivraison`, `PlanCatalogue`) exécuté par
   l'adaptateur de leur entité (`livraison.ts`, `catalogue.ts`), et non plus par un
   `planDeMaintenance` partagé. L'ancien texte n'est pas réécrit : il reste l'état de #874.
+
+## Amendement — Le genre de stock porte tout ce qu'un changement de stock cause
+
+Un `Fait` autorise déjà un plan à porter plusieurs conséquences ; le genre `variante.stock.changee`
+en porte désormais trois, dans un ordre fixe : la réindexation, conséquence durable avec l'action
+`index.produit` — la seule qui sème une Règle d'automatisation —, puis l'invalidation du cache et la
+purge du bord, toutes deux non durables et réparées par `TTL`. Les deux dernières reproduisent ce que
+l'ancien Helper par lots faisait pour une liste de Produits. Le genre possède ainsi tout ce qu'un
+changement de stock entraîne, sans dépendre du motif de Commande qui l'a écrit.
+
+Les genres `commande.creee` et `commande.statut.changee` ne gardent que leur conséquence durable,
+l'E-mail de commande. Leurs champs de Produits drainés et réapprovisionnés, les deux charges utiles
+et les deux ports d'effets qui servaient les conséquences retirées disparaissent. Le pont du
+travailleur perd ses deux porteurs de rechange, puisque le non-durable ne passe jamais par lui.
+
+L'écriture du stock agrège et déclare dans la transaction de l'appelant : une seule déclaration par
+Produit effectivement lu, donc par identité complète (`produitId`, `slug`, `categoryId`), jamais une
+par mouvement. Une Variante supprimée entre la lecture et l'application ne produit ni Fait ni
+conséquence ; des mouvements vides ne lisent et n'écrivent rien. Le plan rendu par l'écriture voyage
+avec ses Documents d'index capturés dans la transaction, et la passe après commit l'exécute sans
+aucune lecture nouvelle, en ordre d'identifiant de Produit, en isolant chaque conséquence. Le corps
+et les addenda précédents restent la décision telle qu'elle fut écrite.

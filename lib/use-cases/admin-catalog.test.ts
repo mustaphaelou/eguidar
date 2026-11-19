@@ -1266,6 +1266,7 @@ describe("admin catalog mutations", () => {
     const produit = await createProduct(makeInput({ slug: slug("stock") }), {
       reindexProducts: async () => {},
       revalidateCatalog: () => {},
+      purgeCatalogue: () => {},
     })
     const variante = produit.variants[0]!
     const appels: string[] = []
@@ -1275,19 +1276,27 @@ describe("admin catalog mutations", () => {
     const revalidateCatalog = vi.fn(() => {
       appels.push("invalidation")
     })
+    const purgeCatalogue = vi.fn(() => {
+      appels.push("purge")
+    })
 
     const misAJour = await updateVariantStock(variante.id, 2, {
       reindexProducts,
       revalidateCatalog,
+      purgeCatalogue,
     })
 
-    expect(appels).toEqual(["réindexation", "invalidation"])
+    expect(appels).toEqual(["réindexation", "invalidation", "purge"])
     expect(reindexProducts).toHaveBeenCalledWith([
       expect.objectContaining({ id: produit.id, totalStock: 2 }),
     ])
-    expect(revalidateCatalog).toHaveBeenCalledWith(
-      expect.objectContaining({ id: produit.id, slug: produit.slug })
-    )
+    const evenementCatalogue = {
+      id: produit.id,
+      slug: produit.slug,
+      categoryChain: [{ slug: `categorie-${runId}` }],
+    }
+    expect(revalidateCatalog).toHaveBeenCalledWith(evenementCatalogue)
+    expect(purgeCatalogue).toHaveBeenCalledWith(evenementCatalogue)
     expect(misAJour.variants.find((v) => v.id === variante.id)).toMatchObject({
       stock: 2,
     })
@@ -1298,7 +1307,11 @@ describe("admin catalog mutations", () => {
     expect(evenements).toHaveLength(1)
     expect(evenements[0]).toMatchObject({
       entityType: "produit",
-      payload: { produitId: produit.id },
+      payload: {
+        produitId: produit.id,
+        slug: produit.slug,
+        categoryId,
+      },
     })
   })
 
@@ -1316,12 +1329,43 @@ describe("admin catalog mutations", () => {
         updateVariantStock(variante.id, 3, {
           reindexProducts: effetQuiEchoue,
           revalidateCatalog,
+          purgeCatalogue: () => {},
         })
     )
 
     expect(revalidateCatalog).toHaveBeenCalledOnce()
     expect(misAJour.variants.find((v) => v.id === variante.id)).toMatchObject({
       stock: 3,
+    })
+  })
+
+  it("ne remonte pas à l'appelant l'échec de la purge du stock", async () => {
+    const produit = await createProduct(
+      makeInput({ slug: slug("stock-purge-echec") }),
+      {
+        reindexProducts: async () => {},
+        revalidateCatalog: () => {},
+        purgeCatalogue: () => {},
+      }
+    )
+    const variante = produit.variants[0]!
+    const reindexProducts = vi.fn(async () => {})
+    const revalidateCatalog = vi.fn()
+
+    const misAJour = await verifierFrontiereBestEffort(
+      "purge",
+      (effetQuiEchoue) =>
+        updateVariantStock(variante.id, 4, {
+          reindexProducts,
+          revalidateCatalog,
+          purgeCatalogue: effetQuiEchoue,
+        })
+    )
+
+    expect(reindexProducts).toHaveBeenCalledOnce()
+    expect(revalidateCatalog).toHaveBeenCalledOnce()
+    expect(misAJour.variants.find((v) => v.id === variante.id)).toMatchObject({
+      stock: 4,
     })
   })
 

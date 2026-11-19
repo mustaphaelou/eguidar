@@ -78,3 +78,22 @@ exécution durable garde son statut, sa tentative et son erreur. Les ports `*Eff
 de production, la surcharge partielle, la propriété de chaque module sur son vocabulaire de refus et
 la frontière best-effort des effets non critiques restent tels quels : la frontière décrite ici ne
 vaut plus que pour eux. La publication programmée reste un prédicat de lecture, jamais un job.
+
+## Amendement — Le propriétaire de la couture Commande (2026-11-19)
+
+La couture qui traverse la Commande a désormais un seul propriétaire :
+[`lib/use-cases/commande-stock.ts`](../../lib/use-cases/commande-stock.ts). Ses trois entrées —
+`verrouillerCommande`, `écrireLeStock` et `exécuterStock` — possèdent le verrou, l'application et la
+déclaration du stock, puis la passe après commit. Les effets de Commande restent auprès de leur
+adaptateur, réduits aux deux ports d'e-mail ; les effets de stock sont les trois ports du Catalogue.
+Les surcharges sont imbriquées (`email` et `stock`) pour qu'un test qui borne un e-mail laisse les
+ports du Catalogue armés, et réciproquement. Les adaptateurs de production continuent de vivre dans
+les modules de mutation.
+
+Le point « Co-located cache invalidation » ne tient plus. `invalidateCommande` et son frère
+d'invalidation par lots sont supprimés, avec les cinq `revalidatePath` et la boucle d'invalidation du
+chemin Facebook : les cinq routes concernées lisent la session à chaque requête et n'ont donc aucune
+entrée de cache, si bien que l'appel était un no-op protégé par une règle qui le disait
+indispensable. Le rafraîchissement utile est désormais déclaré par le genre `variante.stock.changee`.
+La frontière best-effort, la transaction autoritaire et les refus `UserFacingError` restent tels
+quels ; le corps et l'amendement précédents ne sont pas réécrits.

@@ -64,10 +64,15 @@ function inputProduit(suffixe: string): ProductInput {
 }
 
 const EFFETS_COMMANDE = {
-  sendOrderPlacedEmail: async () => {},
-  sendOrderStatusEmail: async () => {},
-  invalidateCommande: () => {},
-  invalidateProduits: async () => {},
+  email: {
+    sendOrderPlacedEmail: async () => {},
+    sendOrderStatusEmail: async () => {},
+  },
+  stock: {
+    reindexProducts: async () => {},
+    revalidateCatalog: () => {},
+    purgeCatalogue: () => {},
+  },
 }
 
 const EFFETS_CATALOGUE: Partial<CatalogEffects> = {
@@ -203,6 +208,15 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
     }
     expect(payload.snapshot.orderId).toBe(commande.id)
     expect(payload.snapshot.userEmail).toBe(email)
+
+    const stock = await evenementsDe(produitId)
+    expect(stock).toHaveLength(1)
+    expect(stock[0]!.type).toBe("variante.stock.changee")
+    expect(stock[0]!.payload).toEqual({
+      produitId,
+      slug: `${PREFIXE}produit`,
+      categoryId,
+    })
   })
 
   it("une Commande refusée ne laisse aucun événement", async () => {
@@ -280,7 +294,11 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
     const evenements = await evenementsDe(produitId)
     expect(evenements).toHaveLength(1)
     expect(evenements[0]!.type).toBe("variante.stock.changee")
-    expect(evenements[0]!.payload).toEqual({ produitId })
+    expect(evenements[0]!.payload).toEqual({
+      produitId,
+      slug: `${PREFIXE}produit`,
+      categoryId,
+    })
   })
 
   it("les mutations de Structure écrivent leur événement", async () => {

@@ -108,16 +108,19 @@ describe("le pont du Catalogue", () => {
     const dependances = dependancesDeTest(MAINTENANT, {
       recherche: recherche.port,
     })
-    const plan = declarerApresEcriture("variante.stock.changee", {
+    const charge = {
       produitId: produit.id,
-    })
+      slug: produit.slug,
+      categoryId: produit.categoryId,
+    }
+    const plan = declarerApresEcriture("variante.stock.changee", charge)
     const reindexation = plan.consequences.find(
       (consequence) => consequence.effet === "reindexation"
     )!
     const pont = creerPont(
       "variante.stock.changee",
       "variante.stock.changee",
-      { produitId: produit.id },
+      charge,
       dependances
     )
 

@@ -3,15 +3,27 @@ import { describe, expect, expectTypeOf, it } from "vitest"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import {
   estStatut,
+  peutCloreParRetour,
   peutTransitionner,
   REGISTRE_STATUTS,
   STATUTS_VALIDES,
+  TRANSITIONS_AUTORISÉES,
+  TRANSITIONS_OFFERTES,
   transitionsDisponibles,
 } from "@/lib/statut-de-commande"
 
 const STATUTS = Object.keys(REGISTRE_STATUTS) as OrderStatus[]
 
 const MATRICE_ATTENDUE: Record<OrderStatus, readonly OrderStatus[]> = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["shipped", "cancelled"],
+  shipped: ["delivered"],
+  delivered: [],
+  cancelled: [],
+  returned: [],
+}
+
+const MATRICE_AUTORISÉE: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["shipped", "cancelled"],
   shipped: ["delivered", "returned"],
@@ -38,12 +50,30 @@ describe("REGISTRE_STATUTS", () => {
   })
 })
 
+describe("les tables de transitions", () => {
+  it("expose la table étroite et la table large", () => {
+    expect(TRANSITIONS_OFFERTES).toEqual(MATRICE_ATTENDUE)
+    expect(TRANSITIONS_AUTORISÉES).toEqual(MATRICE_AUTORISÉE)
+  })
+})
+
 describe("peutTransitionner", () => {
-  it("answers the explicit allowed/refused matrix", () => {
+  it("répond la matrice étroite sur les 36 couples", () => {
     for (const statut of STATUTS) {
       for (const cible of STATUTS) {
-        expect(peutTransitionner(statut, cible), `${statut} → ${cible}`).toBe(
-          MATRICE_ATTENDUE[statut].includes(cible)
+        const offerte = TRANSITIONS_OFFERTES[statut].includes(cible)
+        const autorisee = TRANSITIONS_AUTORISÉES[statut].includes(cible)
+        const contexte = `${statut} → ${cible}`
+
+        expect(offerte, contexte).toBe(MATRICE_ATTENDUE[statut].includes(cible))
+        expect(autorisee, contexte).toBe(
+          MATRICE_AUTORISÉE[statut].includes(cible)
+        )
+        expect(offerte && !autorisee, contexte).toBe(false)
+        expect(offerte && cible === "returned", contexte).toBe(false)
+        expect(peutTransitionner(statut, cible), contexte).toBe(offerte)
+        expect(peutCloreParRetour(statut)).toBe(
+          MATRICE_AUTORISÉE[statut].includes("returned")
         )
       }
     }
@@ -66,9 +96,26 @@ describe("peutTransitionner", () => {
       }
     }
   })
+
+  it("ne clôt par retour que depuis une Commande expédiée ou livrée", () => {
+    for (const statut of STATUTS) {
+      expect(peutCloreParRetour(statut), statut).toBe(
+        statut === "shipped" || statut === "delivered"
+      )
+    }
+  })
 })
 
 describe("transitionsDisponibles", () => {
+  it("returns exactly the targets of la table étroite", () => {
+    for (const statut of STATUTS) {
+      expect(transitionsDisponibles(statut)).toEqual(MATRICE_ATTENDUE[statut])
+      expect(transitionsDisponibles(statut)).toEqual(
+        TRANSITIONS_OFFERTES[statut]
+      )
+    }
+  })
+
   it("returns exactly the targets peutTransitionner allows", () => {
     for (const statut of STATUTS) {
       const attendues = STATUTS.filter((cible) =>

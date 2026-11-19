@@ -19,20 +19,20 @@ import {
   type MotifRetour,
   type QuantiteCommandee,
 } from "@/lib/retours"
-import { peutTransitionner } from "@/lib/statut-de-commande"
+import { peutCloreParRetour } from "@/lib/statut-de-commande"
 import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
-import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
-  avecSurcharges,
-  messageDeValidation,
-} from "@/lib/use-cases/mutation-squelette"
-import {
-  defaultOrderEffects,
+  avecSurchargesCommande,
+  écrireLeStock,
+  exécuterStock,
   InvalidOrderTransitionError,
-  produitsTouches,
+  reapprovisionner,
   toOrderEmailSnapshot,
-  type OrderEffects,
-} from "@/lib/use-cases/orders"
+  verrouillerCommande,
+  type MouvementDeStock,
+  type SurchargesCommande,
+} from "@/lib/use-cases/commande-stock"
+import { messageDeValidation } from "@/lib/use-cases/mutation-squelette"
 import { uniqueViolationIndex } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -327,10 +327,8 @@ export async function declarerRetour(
 
   try {
     return await prisma.$transaction(async (tx) => {
-      const verrou = await tx.$queryRaw<{ id: string }[]>`
-        SELECT id FROM "Order" WHERE id = ${declaration.orderId} FOR UPDATE
-      `
-      if (verrou.length === 0) throw new CommandeDuRetourIntrouvableError()
+      const existe = await verrouillerCommande(tx, declaration.orderId)
+      if (!existe) throw new CommandeDuRetourIntrouvableError()
 
       const commande = await tx.order.findUniqueOrThrow({
         where: { id: declaration.orderId },
@@ -414,9 +412,12 @@ export async function refuserRetour(input: RefusDeRetour): Promise<RetourCree> {
   return await prisma.$transaction(async (tx) => {
     const existant = await tx.return.findUnique({
       where: { id: refus.returnId },
-      select: { id: true },
+      select: { id: true, orderId: true },
     })
     if (!existant) throw new RetourIntrouvableError()
+
+    const existe = await verrouillerCommande(tx, existant.orderId)
+    if (!existe) throw new CommandeDuRetourIntrouvableError()
 
     const refusee = await tx.return.updateMany({
       where: { id: refus.returnId, status: "requested" },
@@ -438,22 +439,20 @@ export async function refuserRetour(input: RefusDeRetour): Promise<RetourCree> {
 
 export async function recevoirRetour(
   input: ReceptionDeRetour,
-  overrides?: Partial<OrderEffects>
+  surcharges?: SurchargesCommande
 ): Promise<RetourRecu> {
   const reception = parseReception(input)
-  const effects = avecSurcharges(defaultOrderEffects, overrides)
+  const effets = avecSurchargesCommande(surcharges)
 
-  const { recu, plan } = await prisma.$transaction(async (tx) => {
+  const { recu, ecriture, plan } = await prisma.$transaction(async (tx) => {
     const cible = await tx.return.findUnique({
       where: { id: reception.returnId },
       select: { orderId: true },
     })
     if (!cible) throw new RetourIntrouvableError()
 
-    const verrou = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "Order" WHERE id = ${cible.orderId} FOR UPDATE
-    `
-    if (verrou.length === 0) throw new RetourIntrouvableError()
+    const existe = await verrouillerCommande(tx, cible.orderId)
+    if (!existe) throw new RetourIntrouvableError()
 
     const retour = await tx.return.findUniqueOrThrow({
       where: { id: reception.returnId },
@@ -517,7 +516,7 @@ export async function recevoirRetour(
     })
     if (recue.count === 0) throw new ReceptionDeRetourImpossibleError()
 
-    const articlesRéapprovisionnés: { variantId: string | null }[] = []
+    const mouvements: MouvementDeStock[] = []
     for (const ligne of lignesARecevoir) {
       await tx.returnLine.updateMany({
         where: { returnId: retour.id, orderItemId: ligne.orderItemId },
@@ -531,12 +530,11 @@ export async function recevoirRetour(
       }
       const article = articles.get(ligne.orderItemId)
       if (!article?.variantId) continue
-      await tx.productVariant.updateMany({
-        where: { id: article.variantId },
-        data: { stock: { increment: ligne.receivedQuantity } },
-      })
-      articlesRéapprovisionnés.push({ variantId: article.variantId })
+      mouvements.push(
+        reapprovisionner(article.variantId, ligne.receivedQuantity)
+      )
     }
+    const ecriture = await écrireLeStock(tx, mouvements)
 
     const cumuls = await tx.returnLine.groupBy({
       by: ["orderItemId"],
@@ -557,7 +555,7 @@ export async function recevoirRetour(
 
     let planDeCloture: PlanCommande | null = null
     if (toutesLesUnitesSontRevenues(quantitesCommandees, quantitesRecues)) {
-      if (!peutTransitionner(commande.status, "returned")) {
+      if (!peutCloreParRetour(commande.status)) {
         throw new InvalidOrderTransitionError(commande.status, "returned")
       }
       const fermeture = await tx.order.updateMany({
@@ -584,10 +582,6 @@ export async function recevoirRetour(
         commandeId: commande.id,
         snapshot: toOrderEmailSnapshot(commandeClosee, commande.user.email),
         statut: "returned",
-        produitsRéapprovisionnés: await produitsTouches(
-          tx,
-          articlesRéapprovisionnés
-        ),
       })
       await enregistrerFaits(tx, planDeCloture.faits)
     }
@@ -603,10 +597,12 @@ export async function recevoirRetour(
         lines: lignesARecevoir,
         commandeClose: planDeCloture !== null,
       },
+      ecriture,
       plan: planDeCloture,
     }
   })
 
-  if (plan) await executerCommande(plan, effects, { structure: lireStructure })
+  await exécuterStock(ecriture, effets.stock)
+  if (plan) await executerCommande(plan, effets.email)
   return recu
 }

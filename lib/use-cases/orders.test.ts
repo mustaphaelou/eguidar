@@ -405,34 +405,26 @@ describe("order placement", () => {
     expect(itemB.quantity).toBe(1)
   })
 
-  it("sends the confirmation e-mail before cache invalidation after committing", async () => {
-    const effets: string[] = []
-    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {
-        effets.push("e-mail de confirmation")
-      }
-    )
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {
-        effets.push("e-mail de statut")
-      }
-    )
-    const invalidateCommande = vi.fn<(orderId: string) => void>((orderId) => {
-      effets.push(`invalidation:${orderId}`)
+  it("envoie l'e-mail de confirmation après le commit", async () => {
+    let commandesALEnvoi = 0
+    const sendOrderPlacedEmail = vi.fn<
+      OrderEffects["email"]["sendOrderPlacedEmail"]
+    >(async () => {
+      commandesALEnvoi = await prisma.order.count({
+        where: { userId: userIdA },
+      })
     })
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
     const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
-      sendOrderPlacedEmail,
-      sendOrderStatusEmail,
-      invalidateCommande,
+      email: { sendOrderPlacedEmail, sendOrderStatusEmail },
     })
 
-    expect(effets).toEqual([
-      "e-mail de confirmation",
-      `invalidation:${order.id}`,
-    ])
+    expect(commandesALEnvoi).toBe(1)
     expect(sendOrderStatusEmail).not.toHaveBeenCalled()
     const snapshot = sendOrderPlacedEmail.mock.calls[0][0] as OrderEmailSnapshot
     expect(snapshot.userEmail).toBe(email("a"))
@@ -451,47 +443,58 @@ describe("order placement", () => {
     expect(snapshot.cityName).toBe(cityName)
   })
 
-  it("invalidates the order cache post-commit", async () => {
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
-    commeClient(userIdA)
-    await ajouterArticleAuPanier(variantP4, 1)
-
-    const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
-      invalidateCommande,
+  it("écrit un Fait variante.stock.changee et purge le Produit drainé avec sa chaîne de Structures", async () => {
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+      include: { product: true },
     })
-
-    expect(invalidateCommande).toHaveBeenCalledOnce()
-    expect(invalidateCommande).toHaveBeenCalledWith(order.id)
-  })
-
-  it("purge le Produit dont la dernière unité est drainée, avec sa chaîne de Structures", async () => {
+    const produit = variante.product
+    const evenementsAvant = await prisma.automationEvent.count({
+      where: { entityId: produit.id, type: "variante.stock.changee" },
+    })
     const commandesAvant = await prisma.order.count()
-    lireStructureMock.mockImplementationOnce(async () => {
-      expect(await prisma.order.count()).toBe(commandesAvant + 1)
-      return lireStructureReelle.courante!()
-    })
-    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
+    const reindexProducts = vi.fn<OrderEffects["stock"]["reindexProducts"]>(
       async () => {}
     )
+    const revalidateCatalog =
+      vi.fn<OrderEffects["stock"]["revalidateCatalog"]>()
+    const purgeCatalogue = vi.fn<OrderEffects["stock"]["purgeCatalogue"]>()
     commeClient(userIdA)
-    await ajouterArticleAuPanier(variantP2, 1)
+    await ajouterArticleAuPanier(variantP4, 2)
 
     const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
-      invalidateProduits,
+      stock: { reindexProducts, revalidateCatalog, purgeCatalogue },
     })
 
     expect(order.id).toBeTruthy()
     expect(lireStructureMock).toHaveBeenCalledOnce()
-    expect(invalidateProduits).toHaveBeenCalledOnce()
-    expect(invalidateProduits).toHaveBeenCalledWith([
-      {
-        id: productAId,
-        slug: productASlug,
-        categoryChain: [{ slug: categorySlug }],
+    expect(await prisma.order.count()).toBe(commandesAvant + 1)
+    const evenements = await prisma.automationEvent.findMany({
+      where: { entityId: produit.id, type: "variante.stock.changee" },
+      orderBy: { seq: "asc" },
+    })
+    expect(evenements).toHaveLength(evenementsAvant + 1)
+    expect(evenements[evenements.length - 1]).toMatchObject({
+      entityType: "produit",
+      payload: {
+        produitId: produit.id,
+        slug: produit.slug,
+        categoryId: produit.categoryId,
       },
+    })
+    expect(reindexProducts).toHaveBeenCalledOnce()
+    expect(reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ id: produit.id, totalStock: 0 }),
     ])
+    const evenementCatalogue = {
+      id: produit.id,
+      slug: produit.slug,
+      categoryChain: [{ slug: categorySlug }],
+    }
+    expect(revalidateCatalog).toHaveBeenCalledWith(evenementCatalogue)
+    expect(purgeCatalogue).toHaveBeenCalledWith(evenementCatalogue)
     const stock = await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variantP2 },
+      where: { id: variantP4 },
     })
     expect(stock.stock).toBe(0)
   })
@@ -505,8 +508,7 @@ describe("order placement", () => {
       await ajouterArticleAuPanier(variantP2, 1)
 
       await placeOrder(userIdA, await checkoutInput(userIdA), {
-        sendOrderPlacedEmail: async () => {},
-        invalidateCommande: () => {},
+        email: { sendOrderPlacedEmail: async () => {} },
       })
 
       for (const tag of [
@@ -522,24 +524,40 @@ describe("order placement", () => {
     }
   })
 
-  it("dédoublonne les Produits drainés par plusieurs Articles du même Produit", async () => {
+  it("dédoublonne les Fais variante.stock.changee des Variantes d'un même Produit", async () => {
     lireStructureMock.mockClear()
-    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
-      async () => {}
-    )
+    const evenementsAvant = await prisma.automationEvent.count({
+      where: { entityId: productAId, type: "variante.stock.changee" },
+    })
+    const purgeCatalogue = vi.fn<OrderEffects["stock"]["purgeCatalogue"]>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 1)
     await ajouterArticleAuPanier(variantP2, 1)
 
     await placeOrder(userIdA, await checkoutInput(userIdA), {
-      invalidateProduits,
+      stock: {
+        reindexProducts: async () => {},
+        revalidateCatalog: () => {},
+        purgeCatalogue,
+      },
     })
 
     expect(lireStructureMock).toHaveBeenCalledOnce()
-    expect(invalidateProduits).toHaveBeenCalledOnce()
-    const produits = invalidateProduits.mock.calls[0]![0]
-    expect(produits).toHaveLength(1)
-    expect(produits[0]).toMatchObject({
+    const evenements = await prisma.automationEvent.findMany({
+      where: { entityId: productAId, type: "variante.stock.changee" },
+      orderBy: { seq: "asc" },
+    })
+    expect(evenements).toHaveLength(evenementsAvant + 1)
+    expect(evenements[evenements.length - 1]).toMatchObject({
+      entityType: "produit",
+      payload: {
+        produitId: productAId,
+        slug: productASlug,
+        categoryId: expect.anything(),
+      },
+    })
+    expect(purgeCatalogue).toHaveBeenCalledOnce()
+    expect(purgeCatalogue).toHaveBeenCalledWith({
       id: productAId,
       slug: productASlug,
       categoryChain: [{ slug: categorySlug }],
@@ -547,9 +565,7 @@ describe("order placement", () => {
   })
 
   it("rend une chaîne de Structures vide pour un Produit sans Structure", async () => {
-    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
-      async () => {}
-    )
+    const purgeCatalogue = vi.fn<OrderEffects["stock"]["purgeCatalogue"]>()
     const produit = await prisma.product.create({
       data: {
         name: "Ordres Produit sans Structure",
@@ -579,93 +595,71 @@ describe("order placement", () => {
       await ajouterArticleAuPanier(produit.variants[0].id, 1)
 
       await placeOrder(userIdA, await checkoutInput(userIdA), {
-        invalidateProduits,
+        stock: {
+          reindexProducts: async () => {},
+          revalidateCatalog: () => {},
+          purgeCatalogue,
+        },
       })
 
-      expect(invalidateProduits).toHaveBeenCalledWith([
-        {
-          id: produit.id,
-          slug: produit.slug,
-          categoryChain: [],
-        },
-      ])
+      expect(purgeCatalogue).toHaveBeenCalledWith({
+        id: produit.id,
+        slug: produit.slug,
+        categoryChain: [],
+      })
     } finally {
       await prisma.product.delete({ where: { id: produit.id } })
     }
   })
 
   it("place la Commande malgré l'échec de la purge du catalogue, comme un e-mail de confirmation qui échoue", async () => {
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
     const order = await verifierFrontiereBestEffort(
-      "purge des documents du catalogue",
+      "purge du bord après changement de stock",
       async (effetQuiEchoue) =>
         placeOrder(userIdA, await checkoutInput(userIdA), {
-          sendOrderPlacedEmail: async () => {},
-          invalidateProduits: effetQuiEchoue,
-          invalidateCommande,
+          email: { sendOrderPlacedEmail: async () => {} },
+          stock: { purgeCatalogue: effetQuiEchoue },
         })
     )
 
     expect(order.id).toBeTruthy()
     expect(order.total).toBe(30000)
-    expect(invalidateCommande).toHaveBeenCalledOnce()
-    expect(invalidateCommande).toHaveBeenCalledWith(order.id)
     const cart = await lirePanierClient(userIdA)
     expect(cart.lines).toHaveLength(0)
   })
 
-  it("place la Commande quand la lecture de la Structure échoue, et journalise l'échec", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
-    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
-      async () => {}
-    )
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
+  it("ne place pas la Commande quand la lecture de la Structure échoue", async () => {
+    const evenementsAvant = await prisma.automationEvent.count({
+      where: { entityId: productAId, type: "variante.stock.changee" },
+    })
     lireStructureMock.mockRejectedValueOnce(new Error("Structure indisponible"))
     commeClient(userIdA)
-    await ajouterArticleAuPanier(variantP4, 2)
+    await ajouterArticleAuPanier(variantP2, 1)
 
-    try {
-      const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
-        sendOrderPlacedEmail: async () => {},
-        invalidateCommande,
-        invalidateProduits,
-      })
+    await expect(
+      placeOrder(userIdA, await checkoutInput(userIdA))
+    ).rejects.toThrow("Structure indisponible")
 
-      const commandeEnBase = await prisma.order.findUnique({
-        where: { id: order.id },
+    expect(await prisma.order.count({ where: { userId: userIdA } })).toBe(0)
+    expect(
+      (
+        await prisma.productVariant.findUniqueOrThrow({
+          where: { id: variantP2 },
+        })
+      ).stock
+    ).toBe(1)
+    expect(
+      await prisma.automationEvent.count({
+        where: { entityId: productAId, type: "variante.stock.changee" },
       })
-      expect(commandeEnBase).not.toBeNull()
-      expect(commandeEnBase!.status).toBe("pending")
-      const stock = await prisma.productVariant.findUniqueOrThrow({
-        where: { id: variantP4 },
-      })
-      expect(stock.stock).toBe(0)
-      expect((await lirePanierClient(userIdA)).lines).toHaveLength(0)
-      expect(invalidateProduits).not.toHaveBeenCalled()
-      const ligne = warnSpy.mock.calls
-        .map(([message]) => String(message))
-        .find((message) =>
-          message.includes(
-            `[order] purge des documents du catalogue non effectuée pour ${order.id}`
-          )
-        )
-      expect(ligne).toBeTruthy()
-      expect(JSON.parse(ligne!.slice("[effet] ".length))).toMatchObject({
-        effet: "purge-catalogue",
-        entite: { type: "commande", id: order.id },
-        resultat: "echec",
-        erreur: "Structure indisponible",
-      })
-    } finally {
-      warnSpy.mockRestore()
-    }
+    ).toBe(evenementsAvant)
+    expect((await lirePanierClient(userIdA)).lines).toHaveLength(1)
   })
 
   it("still places the order when email dispatch fails", async () => {
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
@@ -673,32 +667,29 @@ describe("order placement", () => {
       "e-mail de confirmation",
       async (effetQuiEchoue) =>
         placeOrder(userIdA, await checkoutInput(userIdA), {
-          sendOrderPlacedEmail: effetQuiEchoue,
-          invalidateCommande,
+          email: { sendOrderPlacedEmail: effetQuiEchoue },
         })
     )
 
     expect(order.id).toBeTruthy()
     expect(order.total).toBe(30000)
-    expect(invalidateCommande).toHaveBeenCalledOnce()
-    expect(invalidateCommande).toHaveBeenCalledWith(order.id)
     const cart = await lirePanierClient(userIdA)
     expect(cart.lines).toHaveLength(0)
   })
 
-  it("still places the order when cache invalidation fails", async () => {
-    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    )
+  it("place la Commande quand la réindexation du catalogue échoue", async () => {
+    const sendOrderPlacedEmail = vi.fn<
+      OrderEffects["email"]["sendOrderPlacedEmail"]
+    >(async () => {})
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
 
     const order = await verifierFrontiereBestEffort(
-      "invalidation du cache",
+      "réindexation du produit",
       async (effetQuiEchoue) =>
         placeOrder(userIdA, await checkoutInput(userIdA), {
-          sendOrderPlacedEmail,
-          invalidateCommande: effetQuiEchoue,
+          email: { sendOrderPlacedEmail },
+          stock: { reindexProducts: effetQuiEchoue },
         })
     )
 
@@ -754,13 +745,13 @@ describe("order placement", () => {
   })
 
   it("refuses a Commande on a stale Devis, creating nothing and touching no effect", async () => {
-    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    )
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    const sendOrderPlacedEmail = vi.fn<
+      OrderEffects["email"]["sendOrderPlacedEmail"]
+    >(async () => {})
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
+    const purgeCatalogue = vi.fn<OrderEffects["stock"]["purgeCatalogue"]>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     const input = await checkoutInput(userIdA)
@@ -770,9 +761,8 @@ describe("order placement", () => {
     let refus: unknown
     try {
       await placeOrder(userIdA, input, {
-        sendOrderPlacedEmail,
-        sendOrderStatusEmail,
-        invalidateCommande,
+        email: { sendOrderPlacedEmail, sendOrderStatusEmail },
+        stock: { purgeCatalogue },
       })
     } catch (error) {
       refus = error
@@ -794,7 +784,7 @@ describe("order placement", () => {
     expect(stock.stock).toBe(2)
     expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
     expect(sendOrderStatusEmail).not.toHaveBeenCalled()
-    expect(invalidateCommande).not.toHaveBeenCalled()
+    expect(purgeCatalogue).not.toHaveBeenCalled()
   })
 
   it("accepts a drift that changes the parts without changing the Total à payer", async () => {
@@ -818,10 +808,10 @@ describe("order placement", () => {
   })
 
   it("refuses Frais de livraison changed at transaction opening instead of storing the stale fee", async () => {
-    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    )
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    const sendOrderPlacedEmail = vi.fn<
+      OrderEffects["email"]["sendOrderPlacedEmail"]
+    >(async () => {})
+    const purgeCatalogue = vi.fn<OrderEffects["stock"]["purgeCatalogue"]>()
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     const input = await checkoutInput(userIdA)
@@ -836,8 +826,8 @@ describe("order placement", () => {
           }),
         () =>
           placeOrder(userIdA, input, {
-            sendOrderPlacedEmail,
-            invalidateCommande,
+            email: { sendOrderPlacedEmail },
+            stock: { purgeCatalogue },
           })
       )
     ).rejects.toBeInstanceOf(DevisPériméError)
@@ -850,7 +840,7 @@ describe("order placement", () => {
     })
     expect(stock.stock).toBe(2)
     expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
-    expect(invalidateCommande).not.toHaveBeenCalled()
+    expect(purgeCatalogue).not.toHaveBeenCalled()
   })
 
   it("refuses a unit price changed at transaction opening instead of storing the stale price", async () => {
@@ -959,10 +949,10 @@ describe("order placement", () => {
   })
 
   it("allows only one order to take the last unit under concurrency", async () => {
-    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    )
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    const sendOrderPlacedEmail = vi.fn<
+      OrderEffects["email"]["sendOrderPlacedEmail"]
+    >(async () => {})
+    const purgeCatalogue = vi.fn<OrderEffects["stock"]["purgeCatalogue"]>()
     commeClient(userIdB)
     await ajouterArticleAuPanier(variantP2, 1)
     commeClient(userIdC)
@@ -970,12 +960,12 @@ describe("order placement", () => {
 
     const [first, second] = await Promise.allSettled([
       placeOrder(userIdB, await checkoutInput(userIdB), {
-        sendOrderPlacedEmail,
-        invalidateCommande,
+        email: { sendOrderPlacedEmail },
+        stock: { purgeCatalogue },
       }),
       placeOrder(userIdC, await checkoutInput(userIdC), {
-        sendOrderPlacedEmail,
-        invalidateCommande,
+        email: { sendOrderPlacedEmail },
+        stock: { purgeCatalogue },
       }),
     ])
 
@@ -988,7 +978,7 @@ describe("order placement", () => {
     )
     expect(rejected!.reason).toBeInstanceOf(OutOfStockError)
     expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
-    expect(invalidateCommande).toHaveBeenCalledOnce()
+    expect(purgeCatalogue).toHaveBeenCalledOnce()
     const stock = await prisma.productVariant.findUniqueOrThrow({
       where: { id: variantP2 },
     })
@@ -1003,10 +993,9 @@ describe("order placement", () => {
     "one Panier consumed by two concurrent submissions creates one Commande and refuses the second with EmptyCartError",
     { timeout: 20_000 },
     async () => {
-      const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-        async () => {}
-      )
-      const invalidateCommande = vi.fn<(orderId: string) => void>()
+      const sendOrderPlacedEmail = vi.fn<
+        OrderEffects["email"]["sendOrderPlacedEmail"]
+      >(async () => {})
       commeClient(userIdA)
       await ajouterArticleAuPanier(variantP1, 1)
       const input = await checkoutInput(userIdA)
@@ -1020,12 +1009,10 @@ describe("order placement", () => {
         `%FROM "CartItem"%FOR UPDATE%`
       )
       const premiere = placeOrder(userIdA, input, {
-        sendOrderPlacedEmail,
-        invalidateCommande,
+        email: { sendOrderPlacedEmail },
       })
       const seconde = placeOrder(userIdA, input, {
-        sendOrderPlacedEmail,
-        invalidateCommande,
+        email: { sendOrderPlacedEmail },
       })
       const resultats = Promise.allSettled([premiere, seconde])
       try {
@@ -1044,7 +1031,6 @@ describe("order placement", () => {
       expect(echecs).toHaveLength(1)
       expect(echecs[0].reason).toBeInstanceOf(EmptyCartError)
       expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
-      expect(invalidateCommande).toHaveBeenCalledOnce()
 
       const commandes = await prisma.order.findMany({
         where: { userId: userIdA },
@@ -1069,9 +1055,9 @@ describe("order placement", () => {
     "the last unit still yields one Commande and one OutOfStockError under concurrency",
     { timeout: 20_000 },
     async () => {
-      const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-        async () => {}
-      )
+      const sendOrderPlacedEmail = vi.fn<
+        OrderEffects["email"]["sendOrderPlacedEmail"]
+      >(async () => {})
       commeClient(userIdA)
       await ajouterArticleAuPanier(variantP2, 1)
       commeClient(userIdB)
@@ -1087,8 +1073,12 @@ describe("order placement", () => {
           ),
         `%UPDATE%ProductVariant%`
       )
-      const premiere = placeOrder(userIdA, inputA, { sendOrderPlacedEmail })
-      const seconde = placeOrder(userIdB, inputB, { sendOrderPlacedEmail })
+      const premiere = placeOrder(userIdA, inputA, {
+        email: { sendOrderPlacedEmail },
+      })
+      const seconde = placeOrder(userIdB, inputB, {
+        email: { sendOrderPlacedEmail },
+      })
       const resultats = Promise.allSettled([premiere, seconde])
       try {
         await verrou.attendreBloques(2)
@@ -1137,17 +1127,14 @@ describe("order placement", () => {
   })
 
   it("rejects invalid address, phone and missing Ville de livraison before post-commit effects", async () => {
-    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    )
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    const sendOrderPlacedEmail = vi.fn<
+      OrderEffects["email"]["sendOrderPlacedEmail"]
+    >(async () => {})
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
     const effects: Partial<OrderEffects> = {
-      sendOrderPlacedEmail,
-      sendOrderStatusEmail,
-      invalidateCommande,
+      email: { sendOrderPlacedEmail, sendOrderStatusEmail },
     }
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
@@ -1171,7 +1158,6 @@ describe("order placement", () => {
 
     expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
     expect(sendOrderStatusEmail).not.toHaveBeenCalled()
-    expect(invalidateCommande).not.toHaveBeenCalled()
   })
 })
 
@@ -1234,28 +1220,22 @@ describe("order status transitions", () => {
     return order.id
   }
 
-  it("sends the status e-mail before cache invalidation for each Transition de statut", async () => {
+  it("envoie l'e-mail de statut à chaque Transition de statut", async () => {
     const effets: string[] = []
-    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
-      async () => {}
-    )
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async (_snapshot, status) => {
-        effets.push(`e-mail:${status}`)
-      }
-    )
-    const invalidateCommande = vi.fn<(orderId: string) => void>((orderId) => {
-      effets.push(`invalidation:${orderId}`)
+    const sendOrderPlacedEmail = vi.fn<
+      OrderEffects["email"]["sendOrderPlacedEmail"]
+    >(async () => {})
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async (_snapshot, status) => {
+      effets.push(`e-mail:${status}`)
     })
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
-    const effects: OrderEffects = {
-      sendOrderPlacedEmail,
-      sendOrderStatusEmail,
-      invalidateCommande,
-      invalidateProduits: async () => {},
+    const effects: Partial<OrderEffects> = {
+      email: { sendOrderPlacedEmail, sendOrderStatusEmail },
     }
     await updateOrderStatus(order.id, "confirmed", acteurId, effects)
     await updateOrderStatus(order.id, "shipped", acteurId, effects)
@@ -1263,11 +1243,8 @@ describe("order status transitions", () => {
 
     expect(effets).toEqual([
       "e-mail:confirmed",
-      `invalidation:${order.id}`,
       "e-mail:shipped",
-      `invalidation:${order.id}`,
       "e-mail:delivered",
-      `invalidation:${order.id}`,
     ])
     expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
     const final = await getOrder(userIdA, order.id)
@@ -1285,9 +1262,9 @@ describe("order status transitions", () => {
   })
 
   it("hands the e-mail the Total à payer stored on the Commande, never the sum of its parts", async () => {
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
     const orderId = await createAdminOrderRecord(
       userIdA,
       [{ variantId: variantP1, quantity: 1 }],
@@ -1295,7 +1272,7 @@ describe("order status transitions", () => {
     )
 
     await updateOrderStatus(orderId, "confirmed", acteurId, {
-      sendOrderStatusEmail,
+      email: { sendOrderStatusEmail },
     })
 
     expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
@@ -1306,9 +1283,9 @@ describe("order status transitions", () => {
   })
 
   it("cancels a pending order and restocks the variants", async () => {
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
     const orderId = await placeSmallOrder(userIdA)
     expect(
       (
@@ -1319,7 +1296,7 @@ describe("order status transitions", () => {
     ).toBe(0)
 
     await updateOrderStatus(orderId, "cancelled", acteurId, {
-      sendOrderStatusEmail,
+      email: { sendOrderStatusEmail },
     })
 
     const order = await getOrder(userIdA, orderId)
@@ -1337,101 +1314,107 @@ describe("order status transitions", () => {
     )
   })
 
-  it("invalidates the order cache post-commit", async () => {
-    const orderId = await placeSmallOrder(userIdA)
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
-
-    await updateOrderStatus(orderId, "confirmed", acteurId, {
-      invalidateCommande,
+  it("écrit un Fait variante.stock.changee et réindexe le Produit réapprovisionné après une Annulation", async () => {
+    const variante = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+      include: { product: true },
     })
-
-    expect(invalidateCommande).toHaveBeenCalledOnce()
-    expect(invalidateCommande).toHaveBeenCalledWith(orderId)
-  })
-
-  it("purge les Produits réapprovisionnés quand une Commande revient à un Statut qui restocke", async () => {
-    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
-      async () => {}
-    )
-    commeClient(userIdA)
-    await ajouterArticleAuPanier(variantP2, 1)
-    const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
-      sendOrderPlacedEmail: async () => {},
-      invalidateCommande: () => {},
-      invalidateProduits: async () => {},
+    const produit = variante.product
+    const orderId = await placeSmallOrder(userIdA)
+    const evenementsAvant = await prisma.automationEvent.count({
+      where: { entityId: produit.id, type: "variante.stock.changee" },
     })
     lireStructureMock.mockClear()
+    const reindexProducts = vi.fn<OrderEffects["stock"]["reindexProducts"]>(
+      async () => {}
+    )
+    const revalidateCatalog =
+      vi.fn<OrderEffects["stock"]["revalidateCatalog"]>()
+    const purgeCatalogue = vi.fn<OrderEffects["stock"]["purgeCatalogue"]>()
 
-    await updateOrderStatus(order.id, "cancelled", acteurId, {
-      sendOrderStatusEmail: async () => {},
-      invalidateCommande: () => {},
-      invalidateProduits,
+    await updateOrderStatus(orderId, "cancelled", acteurId, {
+      email: { sendOrderStatusEmail: async () => {} },
+      stock: { reindexProducts, revalidateCatalog, purgeCatalogue },
     })
 
     expect(lireStructureMock).toHaveBeenCalledOnce()
-    expect(invalidateProduits).toHaveBeenCalledOnce()
-    expect(invalidateProduits).toHaveBeenCalledWith([
-      {
-        id: productAId,
-        slug: productASlug,
-        categoryChain: [{ slug: categorySlug }],
-      },
-    ])
-    const stock = await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variantP2 },
+    const evenements = await prisma.automationEvent.findMany({
+      where: { entityId: produit.id, type: "variante.stock.changee" },
+      orderBy: { seq: "asc" },
     })
-    expect(stock.stock).toBe(1)
+    expect(evenements).toHaveLength(evenementsAvant + 1)
+    expect(evenements[evenements.length - 1]).toMatchObject({
+      entityType: "produit",
+      payload: {
+        produitId: produit.id,
+        slug: produit.slug,
+        categoryId: produit.categoryId,
+      },
+    })
+    expect(reindexProducts).toHaveBeenCalledOnce()
+    expect(reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ id: produit.id, totalStock: 2 }),
+    ])
+    const evenementCatalogue = {
+      id: produit.id,
+      slug: produit.slug,
+      categoryChain: [{ slug: categorySlug }],
+    }
+    expect(revalidateCatalog).toHaveBeenCalledWith(evenementCatalogue)
+    expect(purgeCatalogue).toHaveBeenCalledWith(evenementCatalogue)
+    const stock = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+    })
+    expect(stock.stock).toBe(2)
   })
 
   it("still updates the status when email dispatch fails", async () => {
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
     const orderId = await placeSmallOrder(userIdA)
 
     const updated = await verifierFrontiereBestEffort(
       "e-mail de statut",
       (effetQuiEchoue) =>
         updateOrderStatus(orderId, "confirmed", acteurId, {
-          sendOrderStatusEmail: effetQuiEchoue,
-          invalidateCommande,
+          email: { sendOrderStatusEmail: effetQuiEchoue },
         })
     )
 
     expect(updated.status).toBe("confirmed")
-    expect(invalidateCommande).toHaveBeenCalledOnce()
-    expect(invalidateCommande).toHaveBeenCalledWith(orderId)
     const fetched = await getOrder(userIdA, orderId)
     expect(fetched!.status).toBe("confirmed")
   })
 
-  it("still updates the status when cache invalidation fails", async () => {
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
+  it("met à jour le statut quand la purge du catalogue échoue", async () => {
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
     const orderId = await placeSmallOrder(userIdA)
 
     const updated = await verifierFrontiereBestEffort(
-      "invalidation du cache",
+      "purge du bord après changement de stock",
       (effetQuiEchoue) =>
-        updateOrderStatus(orderId, "confirmed", acteurId, {
-          sendOrderStatusEmail,
-          invalidateCommande: effetQuiEchoue,
+        updateOrderStatus(orderId, "cancelled", acteurId, {
+          email: { sendOrderStatusEmail },
+          stock: { purgeCatalogue: effetQuiEchoue },
         })
     )
 
-    expect(updated.status).toBe("confirmed")
+    expect(updated.status).toBe("cancelled")
     expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
   })
 
-  it("ne réapprovisionne plus sur le passage à Retournée : la réception du Retour le fait", async () => {
+  it("refuse la transition manuelle vers Retournée : la réception du Retour le fait", async () => {
     const orderId = await placeSmallOrder(userIdA)
     await updateOrderStatus(orderId, "confirmed", acteurId)
     await updateOrderStatus(orderId, "shipped", acteurId)
     await updateOrderStatus(orderId, "delivered", acteurId)
 
-    await updateOrderStatus(orderId, "returned", acteurId)
+    await expect(
+      updateOrderStatus(orderId, "returned", acteurId)
+    ).rejects.toThrow(InvalidOrderTransitionError)
 
     const order = await getOrder(userIdA, orderId)
-    expect(order!.status).toBe("returned")
+    expect(order!.status).toBe("delivered")
     expect(
       (
         await prisma.productVariant.findUniqueOrThrow({
@@ -1445,26 +1428,26 @@ describe("order status transitions", () => {
     const orderId = await placeSmallOrder(userIdA)
     await updateOrderStatus(orderId, "confirmed", acteurId)
     await updateOrderStatus(orderId, "shipped", acteurId)
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
+    const purgeCatalogue = vi.fn<OrderEffects["stock"]["purgeCatalogue"]>()
 
     await expect(
       updateOrderStatus(orderId, "cancelled", acteurId, {
-        sendOrderStatusEmail,
-        invalidateCommande,
+        email: { sendOrderStatusEmail },
+        stock: { purgeCatalogue },
       })
     ).rejects.toThrow(InvalidOrderTransitionError)
     await expect(
       updateOrderStatus(orderId, "confirmed", acteurId, {
-        sendOrderStatusEmail,
-        invalidateCommande,
+        email: { sendOrderStatusEmail },
+        stock: { purgeCatalogue },
       })
     ).rejects.toThrow(InvalidOrderTransitionError)
 
     expect(sendOrderStatusEmail).not.toHaveBeenCalled()
-    expect(invalidateCommande).not.toHaveBeenCalled()
+    expect(purgeCatalogue).not.toHaveBeenCalled()
   })
 
   it("rejects skipping a step", async () => {
@@ -1475,17 +1458,17 @@ describe("order status transitions", () => {
   })
 
   it("restocks exactly once when a double cancel is attempted", async () => {
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
     const orderId = await placeSmallOrder(userIdA)
     await updateOrderStatus(orderId, "cancelled", acteurId, {
-      sendOrderStatusEmail,
+      email: { sendOrderStatusEmail },
     })
 
     await expect(
       updateOrderStatus(orderId, "cancelled", acteurId, {
-        sendOrderStatusEmail,
+        email: { sendOrderStatusEmail },
       })
     ).rejects.toThrow(InvalidOrderTransitionError)
 
@@ -1500,20 +1483,17 @@ describe("order status transitions", () => {
   })
 
   it("restocks exactly once when two cancels race", async () => {
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
     const orderId = await placeSmallOrder(userIdA)
 
     const [first, second] = await Promise.allSettled([
       updateOrderStatus(orderId, "cancelled", acteurId, {
-        sendOrderStatusEmail,
-        invalidateCommande,
+        email: { sendOrderStatusEmail },
       }),
       updateOrderStatus(orderId, "cancelled", acteurId, {
-        sendOrderStatusEmail,
-        invalidateCommande,
+        email: { sendOrderStatusEmail },
       }),
     ])
 
@@ -1527,7 +1507,6 @@ describe("order status transitions", () => {
       expect(second.reason).toBeInstanceOf(InvalidOrderTransitionError)
     }
     expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
-    expect(invalidateCommande).toHaveBeenCalledOnce()
     expect(
       (
         await prisma.productVariant.findUniqueOrThrow({
@@ -1673,6 +1652,39 @@ describe("order status transitions", () => {
       })
     ).resolves.toBe(1)
   })
+
+  it(
+    "attend le verrou de la Commande avant la transition manuelle",
+    { timeout: 10_000 },
+    async () => {
+      const orderId = await placeSmallOrder(userIdA)
+      const verrou = await retenirLeVerrou(
+        (tx) =>
+          tx.$queryRawUnsafe(
+            `SELECT id FROM "Order" WHERE id = $1 FOR UPDATE`,
+            orderId
+          ),
+        `%FROM "Order" WHERE id = $1 FOR UPDATE%`
+      )
+      const transition = updateOrderStatus(orderId, "confirmed", acteurId)
+      try {
+        await verrou.attendreBloques(1)
+      } finally {
+        verrou.liberer()
+      }
+      await verrou.transaction
+      await transition
+
+      await expect(
+        prisma.order.findUniqueOrThrow({ where: { id: orderId } })
+      ).resolves.toMatchObject({ status: "confirmed" })
+      await expect(
+        prisma.orderStatusChange.count({
+          where: { orderId, toStatus: "confirmed" },
+        })
+      ).resolves.toBe(1)
+    }
+  )
 
   it("rejects an unknown order", async () => {
     await expect(
@@ -1841,21 +1853,21 @@ describe("admin lifecycle", () => {
   })
 
   it("emails the customer on each status change", async () => {
-    const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
-      async () => {}
-    )
+    const sendOrderStatusEmail = vi.fn<
+      OrderEffects["email"]["sendOrderStatusEmail"]
+    >(async () => {})
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 2)
     const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     await updateOrderStatus(order.id, "confirmed", acteurId, {
-      sendOrderStatusEmail,
+      email: { sendOrderStatusEmail },
     })
     await updateOrderStatus(order.id, "shipped", acteurId, {
-      sendOrderStatusEmail,
+      email: { sendOrderStatusEmail },
     })
     await updateOrderStatus(order.id, "delivered", acteurId, {
-      sendOrderStatusEmail,
+      email: { sendOrderStatusEmail },
     })
 
     expect(sendOrderStatusEmail).toHaveBeenCalledTimes(3)
@@ -1868,20 +1880,6 @@ describe("admin lifecycle", () => {
       userEmail: email("a"),
       orderId: order.id,
     })
-  })
-
-  it("invalidates the order cache post-commit", async () => {
-    const invalidateCommande = vi.fn<(orderId: string) => void>()
-    commeClient(userIdA)
-    await ajouterArticleAuPanier(variantP1, 2)
-    const order = await placeOrder(userIdA, await checkoutInput(userIdA))
-
-    await updateOrderStatus(order.id, "confirmed", acteurId, {
-      invalidateCommande,
-    })
-
-    expect(invalidateCommande).toHaveBeenCalledOnce()
-    expect(invalidateCommande).toHaveBeenCalledWith(order.id)
   })
 
   it("cancels a pending order, restocks the variants and reflects it in admin reads", async () => {

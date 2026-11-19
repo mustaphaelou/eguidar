@@ -51,3 +51,15 @@
 ## Amendement d'ADR-0009
 
 La règle d'ADR-0009 — « le Chiffre d'affaires encaissé ne compte que les Commandes Livrées » — est remplacée par la présente décision. `Livrée` reste l'instant où le Paiement à la livraison produit son Encaissement, mais la lecture somme les lignes d'argent : un Encaissement peut survivre à une Commande qui n'est plus Livrée, et un Remboursement réduit le net sans changer le Statut. Les deux gardes citées par ADR-0009 restent des preuves de lecture du montant persisté, désormais portées par les Encaissements.
+
+## Amendement — La fermeture manuelle n'existe plus
+
+L'observation qui a motivé cet ADR — un passage manuel à `Retournée` n'apporte ni stock ni
+Encaissement — reste vraie, mais elle n'est plus atteignable : `updateOrderStatus` lit la table
+étroite des transitions et refuse `Retournée`. Seule la réception d'un Retour, lorsque toutes les
+unités commandées sont revenues, peut fermer la Commande, et elle le fait par la table large. Un
+`Encaissement` n'est toujours écrit que par le passage manuel à `Livrée`, et un `Remboursement` ne
+change jamais le statut. La lecture du chiffre d'affaires n'a donc pas varié : elle additionne les
+Encaissements et soustrait les Remboursements, sans filtre sur le Statut de commande. Les deux
+chemins de statut sont enregistrés dans [ADR-0055](0055-le-retour-l-encaissement-et-le-remboursement-sont-trois-faits-distincts.md) ;
+le corps de la présente décision n'est pas réécrit.

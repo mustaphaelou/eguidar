@@ -106,7 +106,11 @@ export function declarerDepuisLaChargeValidee(
       const c = charge as Charge<"variante.stock.changee">
       return {
         genre,
-        plan: declarerApresEcriture(genre, { produitId: c.produitId }),
+        plan: declarerApresEcriture(genre, {
+          produitId: c.produitId,
+          slug: c.slug ?? "",
+          categoryId: c.categoryId ?? null,
+        }),
       }
     }
     case "structure.creee": {

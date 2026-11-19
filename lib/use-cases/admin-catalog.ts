@@ -3,6 +3,12 @@ import { z } from "zod"
 import { enregistrerFaits } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
 import {
+  écrireLeStock,
+  exécuterStock,
+  fixer,
+  type EffetsStock,
+} from "@/lib/use-cases/commande-stock"
+import {
   Prisma,
   type Category,
   type Product,
@@ -1179,42 +1185,21 @@ export async function updateVariantStock(
     defaultCatalogEffects(variant.product.id),
     overrides
   )
+  const stockEffects: EffetsStock = {
+    reindexProducts: effects.reindexProducts,
+    revalidateCatalog: effects.revalidateCatalog,
+    purgeCatalogue: effects.purgeCatalogue,
+  }
   const product = {
     ...variant.product,
     variants: variant.product.variants.map((v) =>
       v.id === variantId ? { ...v, stock } : v
     ),
   }
-  const plan = await prisma.$transaction(async (tx) => {
-    await tx.productVariant.update({
-      where: { id: variantId },
-      data: { stock },
-    })
-    const plan = declarerApresEcriture("variante.stock.changee", {
-      produitId: variant.product.id,
-      slug: variant.product.slug,
-      categoryId: variant.product.categoryId,
-    })
-    await enregistrerFaits(tx, plan.faits)
-    return plan
-  })
-  let documentsLus: Promise<readonly DocumentCatalogue[]> | undefined
-  const documents = () =>
-    (documentsLus ??= (async () => [
-      {
-        indexable: toIndexableProduct(product),
-        evenement: {
-          id: product.id,
-          slug: product.slug,
-          ...(await chainesDuProduit(product.categoryId)),
-        },
-      },
-    ])())
-  await executerCatalogue(plan, effects, {
-    documents,
-    evenements: async () =>
-      (await documents()).map(({ evenement }) => evenement),
-  })
+  const ecriture = await prisma.$transaction((tx) =>
+    écrireLeStock(tx, [fixer(variantId, stock)])
+  )
+  await exécuterStock(ecriture, stockEffects)
   return product
 }
 

@@ -1,18 +1,13 @@
 import { z } from "zod"
 
 import { enregistrerFaits } from "@/lib/automations/evenements"
+import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import type { CommandeListingParams } from "@/lib/commande-listing"
 import { prisma } from "@/lib/db"
-import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
-import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import { peutTransitionner } from "@/lib/statut-de-commande"
 import { PAGE_SIZES } from "@/lib/table-config"
 import { lirePanierClient } from "@/lib/panier"
-import {
-  invalidateCommande,
-  invalidateProduits,
-} from "@/lib/use-cases/cache-invalidation"
 import {
   deliveryAddressField,
   deliveryPhoneField,
@@ -23,39 +18,34 @@ import {
   selectionValidee,
 } from "@/lib/use-cases/devis"
 import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
-import { lireStructure } from "@/lib/use-cases/lecture-structure"
+import { messageDeValidation } from "@/lib/use-cases/mutation-squelette"
 import {
-  avecSurcharges,
-  messageDeValidation,
-} from "@/lib/use-cases/mutation-squelette"
-import { declarerApresEcriture, type ProduitTouche } from "@/lib/apres-ecriture"
-import {
-  executer as executerCommande,
-  type EffetsCommande,
-} from "@/lib/use-cases/apres-ecriture/commande"
+  avecSurchargesCommande,
+  écrireLeStock,
+  exécuterStock,
+  InvalidOrderTransitionError,
+  reserver,
+  reapprovisionner,
+  toOrderEmailSnapshot,
+  verrouillerCommande,
+  type SurchargesCommande,
+} from "@/lib/use-cases/commande-stock"
+import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-export type OrderEffects = EffetsCommande
-
-export const defaultOrderEffects: OrderEffects = {
-  sendOrderPlacedEmail,
-  sendOrderStatusEmail,
-  invalidateCommande,
-  invalidateProduits,
-}
+export {
+  InvalidOrderTransitionError,
+  OutOfStockError,
+  toOrderEmailSnapshot,
+  type OutOfStockItem,
+} from "@/lib/use-cases/commande-stock"
+export type { EffetsCommandeEcriture as OrderEffects } from "@/lib/use-cases/commande-stock"
 
 export interface CheckoutInput {
   cityId: string
   address: string
   phone: string
   totalAffiche: number
-}
-
-export interface OutOfStockItem {
-  productName: string
-  variantName: string
-  requested: number
-  available: number
 }
 
 export interface OrderItemDetail {
@@ -127,22 +117,6 @@ export class EmptyCartError extends UserFacingError {
   }
 }
 
-export class OutOfStockError extends UserFacingError {
-  items: OutOfStockItem[]
-
-  constructor(items: OutOfStockItem[]) {
-    const details = items
-      .map(
-        (item) =>
-          `« ${item.productName} ${item.variantName} » : ${item.requested} demandé(s), ${item.available} disponible(s)`
-      )
-      .join(" ; ")
-    super(`Stock insuffisant : ${details}`)
-    this.name = "OutOfStockError"
-    this.items = items
-  }
-}
-
 export class DevisPériméError extends UserFacingError {
   constructor() {
     super(
@@ -166,13 +140,6 @@ export class UserNotFoundError extends Error {
   }
 }
 
-export class InvalidOrderTransitionError extends UserFacingError {
-  constructor(fromStatus: OrderStatus, nextStatus: OrderStatus) {
-    super(`Transition invalide : ${fromStatus} → ${nextStatus}`)
-    this.name = "InvalidOrderTransitionError"
-  }
-}
-
 const checkoutInputSchema = z.object({
   cityId: z.string().min(1, "ville de livraison requise"),
   address: deliveryAddressField,
@@ -191,22 +158,6 @@ function parseCheckoutInput(input: CheckoutInput): CheckoutInput {
     )
   }
   return result.data
-}
-
-type OrderWithItems = {
-  id: string
-  cityName: string
-  address: string
-  phone: string
-  total: number
-  shippingFee: number
-  totalPayable: number
-  items: {
-    productName: string
-    variantName: string
-    price: number
-    quantity: number
-  }[]
 }
 
 type CommandeAvecArgent = {
@@ -247,93 +198,6 @@ const SELECT_ARGENT = {
   },
 } as const
 
-export function toOrderEmailSnapshot(
-  order: OrderWithItems,
-  userEmail: string
-): OrderEmailSnapshot {
-  return {
-    userEmail,
-    orderId: order.id,
-    items: order.items.map((item) => ({
-      productName: item.productName,
-      variantName: item.variantName,
-      price: item.price,
-      quantity: item.quantity,
-    })),
-    total: order.total,
-    shippingFee: order.shippingFee,
-    totalPayable: order.totalPayable,
-    cityName: order.cityName,
-    address: order.address,
-    phone: order.phone,
-  }
-}
-
-async function reserverStock(
-  tx: Prisma.TransactionClient,
-  lines: {
-    variantId: string
-    quantity: number
-    productName: string
-    variantName: string
-    stock: number
-  }[]
-): Promise<void> {
-  for (const line of lines) {
-    const updated = await tx.productVariant.updateMany({
-      where: { id: line.variantId, stock: { gte: line.quantity } },
-      data: { stock: { decrement: line.quantity } },
-    })
-    if (updated.count === 0) {
-      const current = await tx.productVariant.findUnique({
-        where: { id: line.variantId },
-        select: { stock: true },
-      })
-      throw new OutOfStockError([
-        {
-          productName: line.productName,
-          variantName: line.variantName,
-          requested: line.quantity,
-          available: current?.stock ?? line.stock,
-        },
-      ])
-    }
-  }
-}
-
-async function réapprovisionnerArticles(
-  tx: Prisma.TransactionClient,
-  items: { variantId: string | null; quantity: number }[]
-): Promise<void> {
-  for (const item of items) {
-    if (!item.variantId) continue
-    await tx.productVariant.updateMany({
-      where: { id: item.variantId },
-      data: { stock: { increment: item.quantity } },
-    })
-  }
-}
-
-export async function produitsTouches(
-  tx: Prisma.TransactionClient,
-  items: readonly { variantId: string | null }[]
-): Promise<ProduitTouche[]> {
-  const variantes = [
-    ...new Set(
-      items
-        .map((item) => item.variantId)
-        .filter((variantId): variantId is string => variantId !== null)
-    ),
-  ]
-  if (variantes.length === 0) return []
-
-  return tx.product.findMany({
-    where: { variants: { some: { id: { in: variantes } } } },
-    select: { id: true, slug: true, categoryId: true },
-    orderBy: { id: "asc" },
-  })
-}
-
 async function verrouillerPanierClient(
   tx: Prisma.TransactionClient,
   userId: string
@@ -349,9 +213,9 @@ async function verrouillerPanierClient(
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
-  overrides?: Partial<OrderEffects>
+  surcharges?: SurchargesCommande
 ) {
-  const effects = avecSurcharges(defaultOrderEffects, overrides)
+  const effets = avecSurchargesCommande(surcharges)
   const data = parseCheckoutInput(input)
 
   const user = await prisma.user.findUnique({
@@ -360,7 +224,7 @@ export async function placeOrder(
   })
   if (!user) throw new UserNotFoundError()
 
-  const { order, plan } = await prisma.$transaction(async (tx) => {
+  const { order, ecriture, plan } = await prisma.$transaction(async (tx) => {
     await verrouillerPanierClient(tx, userId)
     const cart = await lirePanierClient(userId, tx)
     if (cart.lines.length === 0) throw new EmptyCartError()
@@ -373,18 +237,18 @@ export async function placeOrder(
     if (montants.totalPayable !== data.totalAffiche)
       throw new DevisPériméError()
 
-    const outOfStock = cart.lines
-      .filter((line) => line.quantity > line.stock)
-      .map((line) => ({
-        productName: line.productName,
-        variantName: line.variantName,
-        requested: line.quantity,
-        available: line.stock,
-      }))
-    if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
-
-    await reserverStock(tx, cart.lines)
-    const produitsDrainés = await produitsTouches(tx, cart.lines)
+    const ecriture = await écrireLeStock(
+      tx,
+      cart.lines.map((line) =>
+        reserver(
+          line.variantId,
+          line.quantity,
+          line.productName,
+          line.variantName,
+          line.stock
+        )
+      )
+    )
 
     const created = await tx.order.create({
       data: {
@@ -415,13 +279,13 @@ export async function placeOrder(
     const plan = declarerApresEcriture("commande.creee", {
       commandeId: created.id,
       snapshot: toOrderEmailSnapshot(created, user.email),
-      produitsDrainés,
     })
     await enregistrerFaits(tx, plan.faits)
-    return { order: created, plan }
+    return { order: created, ecriture, plan }
   })
 
-  await executerCommande(plan, effects, { structure: lireStructure })
+  await exécuterStock(ecriture, effets.stock)
+  await executerCommande(plan, effets.email)
   return order
 }
 
@@ -478,9 +342,9 @@ export async function updateOrderStatus(
   orderId: string,
   nextStatus: OrderStatus,
   actorId: string,
-  overrides?: Partial<OrderEffects>
+  surcharges?: SurchargesCommande
 ) {
-  const effects = avecSurcharges(defaultOrderEffects, overrides)
+  const effets = avecSurchargesCommande(surcharges)
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
@@ -491,7 +355,10 @@ export async function updateOrderStatus(
     throw new InvalidOrderTransitionError(existing.status, nextStatus)
   }
 
-  const { updated, plan } = await prisma.$transaction(async (tx) => {
+  const { updated, ecriture, plan } = await prisma.$transaction(async (tx) => {
+    const existe = await verrouillerCommande(tx, orderId)
+    if (!existe) throw new OrderNotFoundError()
+
     const fresh = await tx.order.findUnique({
       where: { id: orderId },
       include: { items: true },
@@ -535,11 +402,15 @@ export async function updateOrderStatus(
       },
     })
 
-    let produitsRéapprovisionnés: ProduitTouche[] | null = null
-    if (nextStatus === "cancelled") {
-      await réapprovisionnerArticles(tx, fresh.items)
-      produitsRéapprovisionnés = await produitsTouches(tx, fresh.items)
-    }
+    const mouvements =
+      nextStatus === "cancelled"
+        ? fresh.items
+            .filter((item) => item.variantId !== null)
+            .map((item) =>
+              reapprovisionner(item.variantId as string, item.quantity)
+            )
+        : []
+    const ecriture = await écrireLeStock(tx, mouvements)
 
     const updated = await tx.order.findUniqueOrThrow({
       where: { id: orderId },
@@ -549,13 +420,13 @@ export async function updateOrderStatus(
       commandeId: orderId,
       snapshot: toOrderEmailSnapshot(updated, existing.user.email),
       statut: nextStatus,
-      produitsRéapprovisionnés: produitsRéapprovisionnés ?? [],
     })
     await enregistrerFaits(tx, plan.faits)
-    return { updated, plan }
+    return { updated, ecriture, plan }
   })
 
-  await executerCommande(plan, effects, { structure: lireStructure })
+  await exécuterStock(ecriture, effets.stock)
+  await executerCommande(plan, effets.email)
   return updated
 }
 
