@@ -81,6 +81,13 @@ describe("reading the numstat a diff prints", () => {
     expect(parseNumstat("")).toEqual([])
     expect(parseNumstat("\n")).toEqual([])
   })
+
+  it("refuses a line it cannot count, rather than counting it as nothing", () => {
+    expect(() => parseNumstat("douze\t4\tapp/page.tsx\n")).toThrow(
+      "where a count belongs"
+    )
+    expect(() => parseNumstat("12\n")).toThrow("no line count at all")
+  })
 })
 
 describe("the budget a cold read has", () => {
@@ -189,6 +196,35 @@ describe("the line a review quotes", () => {
     expect(execution.statut).toBe(1)
     expect(execution.sortie).toContain("pas-une-ref")
   })
+
+  it("measures a head other than the working tree, so a review can name the pull request", () => {
+    const { cwd, base } = nouveauDepot("entete")
+    commitDepuis(cwd, { "app.ts": "a\nb\nc\nd\n" })
+    const tete = git(cwd, "rev-parse", "HEAD").trim()
+    commitDepuis(cwd, { "app.ts": "a\n" })
+
+    const execution = spawnSync(
+      process.execPath,
+      [LANCEUR, SCRIPT, base, tete],
+      { cwd, encoding: "utf8", timeout: 60_000 }
+    )
+
+    expect(`${execution.stdout}`.trim()).toBe(
+      "1 changed lines — within the budget"
+    )
+  })
+
+  it("says how to use it when it is given no base at all", () => {
+    const { cwd } = nouveauDepot("sans-base")
+    const execution = spawnSync(process.execPath, [LANCEUR, SCRIPT], {
+      cwd,
+      encoding: "utf8",
+      timeout: 60_000,
+    })
+
+    expect(execution.status).toBe(1)
+    expect(`${execution.stderr}`).toContain("usage: diff-size <base> [head]")
+  })
 })
 
 afterAll(() => {
@@ -214,5 +250,16 @@ describe("the budget the review mandate states", () => {
     expect(phrase?.[1]).toBeDefined()
     expect(Number((phrase?.[1] ?? "").replace(/,/g, ""))).toBe(BUDGET)
     expect(mandat).toContain(verdictFor(BUDGET + 1))
+  })
+
+  it("leaves out the two paths the mandate prints", () => {
+    for (const chemin of [
+      "package-lock.json",
+      "lib/generated/prisma/client.ts",
+    ]) {
+      expect(isGenerated(chemin)).toBe(true)
+    }
+    expect(mandat).toContain("`package-lock.json`")
+    expect(mandat).toContain("`lib/generated/**`")
   })
 })

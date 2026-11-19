@@ -9,7 +9,7 @@ git fetch origin main
 git show origin/main:docs/agents/factory/implement.md
 ```
 
-The process section that opened the ticket names this file and nothing else: it is a trigger, not a second copy of these rules. Where it does state a rule, this file wins, and the contradiction is a bug to report in the issue.
+What that makes the process section is in [README.md](README.md).
 
 ## One run
 
@@ -26,7 +26,7 @@ The issue and its comments are the spec. The executor has already prepared the w
 
 - `bash scripts/checks.sh` is green in the worktree, and CI is green on the pull request. The Evidence section quotes the local final line; the Verification table records the CI result.
 - The behaviour has tests, in the repo's layout: `test/` or `*.test.ts` beside the module.
-- An ADR or a `GLOSSARY.md` entry changes only when an acceptance criterion names that ADR or that term; any other change to one is the Escalation below — not an entry under `## Decisions`, and not an amendment. A proposal the diff adds there is judged like code.
+- An ADR or a `GLOSSARY.md` entry follows Escalation; a proposal the diff adds there is judged like code.
 - The pull request is opened **non-draft**: the review Source does not observe draft → ready.
 - The pull request carries the `agent` label, the `## Verification` table and the `## Protected paths` section.
 - The title is one English sentence.
@@ -91,7 +91,7 @@ Check the diff against this list. A protected path the ticket does not require: 
 
 - Implementable as written → implement it. The label means the spec is complete.
 - The acceptance asked for the decision → make it, and carry it as one of its criteria.
-- The implementation changes a decision the acceptance did not name — a public contract, an ADR, a domain term → stop, ask in the issue, report `blocked`. Never invent scope, never "fix while here", and never file it under `## Decisions`: a local call is naming and shape, not a decision.
+- The implementation changes a decision the acceptance did not name — a public contract, an ADR, a domain term, or an ADR or glossary entry no acceptance criterion names → stop, ask in the issue, report `blocked`. Never invent scope, never "fix while here", and never file it under `## Decisions`.
 - Naming and local shape → decide, and list the calls under `## Decisions`.
 
 ## Conduct
@@ -99,7 +99,7 @@ Check the diff against this list. A protected path the ticket does not require: 
 - Push the branch to `mustaphaelou/eguidar`, open the pull request against `main`, watch CI, and stop once it is green. No merge, no deploy, no `gh pr merge`, no push to `main`.
 - The automated line is mandatory: the account has human commits too, and the repository squash-merges, so the pull request is the durable record.
 - No `.scratch/` writes and no citation of the ticket directory: the ticket directory is the scratch, and it is deleted when the ticket ends.
-- English on the GitHub surface — the title, the body, the comments, and any question left in the issue — carrying the glossary's French terms exactly as it spells them. The product's copy and the code's vocabulary stay French.
+- English on the GitHub surface — the title, the body, the comments, and any question left in the issue — carrying the glossary's French terms exactly as it spells them. The product's copy and the domain terms in the code stay French.
 
 ## Blocked report
 

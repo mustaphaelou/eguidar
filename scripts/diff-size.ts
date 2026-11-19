@@ -40,9 +40,15 @@ export function parseNumstat(output: string): MeasuredFile[] {
 }
 
 function lineCount(field: string | undefined): number {
-  if (field === undefined || field === "-") return 0
+  if (field === "-") return 0
+  if (field === undefined) {
+    throw new Error("a numstat row that carries no line count at all")
+  }
   const value = Number.parseInt(field, 10)
-  return Number.isNaN(value) ? 0 : value
+  if (String(value) !== field) {
+    throw new Error(`a numstat row carrying \`${field}\` where a count belongs`)
+  }
+  return value
 }
 
 function renamedTarget(filePath: string): string {
@@ -58,18 +64,16 @@ export function verdictFor(lines: number): SizeVerdict {
   return lines > BUDGET ? "too large for a cold read" : "within the budget"
 }
 
-const DEFAULT_BASE = "origin/main"
-
-function numstat(base: string): string {
+function numstat(base: string, head: string): string {
   const execution = spawnSync(
     "git",
-    ["diff", "--numstat", "-M", `${base}...HEAD`],
+    ["diff", "--numstat", "-M", `${base}...${head}`],
     { cwd: process.cwd(), encoding: "utf8" }
   )
   if (execution.status !== 0) {
     const diagnostic = (execution.stderr ?? "").trim()
     throw new Error(
-      `git diff --numstat ${base}...HEAD : ${diagnostic || "no diagnostic"}`
+      `git diff --numstat ${base}...${head} : ${diagnostic || "no diagnostic"}`
     )
   }
   return execution.stdout
@@ -79,12 +83,19 @@ if (
   process.argv[1] !== undefined &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  const base = process.argv[2] ?? DEFAULT_BASE
-  try {
-    const lines = countChangedLines(parseNumstat(numstat(base)))
-    process.stdout.write(`${lines} changed lines — ${verdictFor(lines)}\n`)
-  } catch (erreur) {
-    process.stderr.write(`${(erreur as Error).message}\n`)
+  const [base, head = "HEAD"] = process.argv.slice(2)
+  if (base === undefined) {
+    process.stderr.write(
+      "usage: diff-size <base> [head]  e.g. diff-size origin/main FETCH_HEAD\n"
+    )
     process.exitCode = 1
+  } else {
+    try {
+      const lines = countChangedLines(parseNumstat(numstat(base, head)))
+      process.stdout.write(`${lines} changed lines — ${verdictFor(lines)}\n`)
+    } catch (erreur) {
+      process.stderr.write(`${(erreur as Error).message}\n`)
+      process.exitCode = 1
+    }
   }
 }

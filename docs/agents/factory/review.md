@@ -9,7 +9,7 @@ git fetch origin main
 git show origin/main:docs/agents/factory/review.md
 ```
 
-The process section that opened the ticket names this file and nothing else: it is a trigger, not a second copy of these rules. Where it does state a rule, this file wins, and the contradiction is a Standards finding.
+What that makes the process section is in [README.md](README.md).
 
 ## Before reading the diff
 
@@ -42,7 +42,16 @@ Report both, even when empty.
 
 ## Size
 
-Run `npx tsx scripts/diff-size.ts origin/main` and quote the line it prints; it leaves out `package-lock.json` and `lib/generated/**`. Above 2,000 changed lines a cold read is not possible. The verdict is `too large for a cold read`; review the Spec axis and the shape only, make no line-level claims, and name what makes the diff large. This review proposes no split and opens no issue: a person cuts the work.
+`git fetch origin pull/<n>/head` first, then measure with the tool as `origin/main` holds it, so a diff cannot widen what is counted:
+
+```sh
+git show origin/main:scripts/diff-size.ts > /tmp/diff-size.ts
+npx tsx /tmp/diff-size.ts origin/main FETCH_HEAD
+```
+
+A diff that adds the tool is the one case that runs it from the head; say so in the review. The tool leaves out `package-lock.json` and `lib/generated/**`.
+
+Above 2,000 changed lines a cold read is not possible. The verdict is `too large for a cold read`; review the Spec axis and the shape only, make no line-level claims, and name what makes the diff large. This review proposes no split and opens no issue: a person cuts the work.
 
 ## Audit the evidence
 
