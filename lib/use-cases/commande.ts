@@ -17,10 +17,7 @@ import {
   revaliderCatalogue,
   type CatalogueEventProduct,
 } from "@/lib/use-cases/cache-invalidation"
-import {
-  lectureDesStructures,
-  type FaitStructure,
-} from "@/lib/use-cases/lecture-structure"
+import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   journalEffetsConsole,
@@ -126,7 +123,7 @@ export async function écrireLeStock(
   ]
   const variantes = await tx.productVariant.findMany({
     where: { id: { in: variantIds } },
-    include: { product: { include: { variants: true, category: true } } },
+    include: { product: { include: { variants: true } } },
   })
   const parId = new Map(variantes.map((variante) => [variante.id, variante]))
   const produits = new Map<string, (typeof variantes)[number]["product"]>()
@@ -187,43 +184,33 @@ export async function écrireLeStock(
   )
   if (ordonnes.length === 0) return { plans: [] }
 
-  const rangees = await tx.category.findMany({
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      image: true,
-      parentId: true,
-      position: true,
-      _count: { select: { products: true } },
-    },
-  })
-  const faitsStructure: FaitStructure[] = rangees.map((rangee) => ({
-    id: rangee.id,
-    name: rangee.name,
-    slug: rangee.slug,
-    image: rangee.image,
-    parentId: rangee.parentId,
-    position: rangee.position,
-    produitsDirects: rangee._count.products,
-  }))
-  const structure = lectureDesStructures(faitsStructure)
-  const plans = ordonnes.map((produit) => ({
-    produitId: produit.id,
-    plan: declarerApresEcriture("variante.stock.changee", {
+  const structure = await lireStructure()
+  const plans = ordonnes.map((produit) => {
+    const fiche = produit.categoryId
+      ? structure.structure(produit.categoryId)
+      : null
+    return {
       produitId: produit.id,
-      slug: produit.slug,
-      categoryId: produit.categoryId,
-    }),
-    document: {
-      indexable: toIndexableProduct(produit),
-      evenement: {
-        id: produit.id,
+      plan: declarerApresEcriture("variante.stock.changee", {
+        produitId: produit.id,
         slug: produit.slug,
-        categoryChain: chaineDeLaStructure(structure, produit.categoryId),
+        categoryId: produit.categoryId,
+      }),
+      document: {
+        indexable: toIndexableProduct({
+          ...produit,
+          category: fiche
+            ? { id: fiche.id, slug: fiche.slug, name: fiche.name }
+            : null,
+        }),
+        evenement: {
+          id: produit.id,
+          slug: produit.slug,
+          categoryChain: chaineDeLaStructure(structure, produit.categoryId),
+        },
       },
-    },
-  }))
+    }
+  })
   await enregistrerFaits(
     tx,
     plans.flatMap(({ plan }) => plan.faits)
