@@ -5,8 +5,17 @@ import { assurancePiedDePage, site } from "@/lib/site"
 
 import { StorefrontFooter } from "./footer"
 
-async function rendreLePied(): Promise<string> {
-  const flux = await renderToReadableStream(<StorefrontFooter />)
+const structures = [
+  { name: "Smartphones", slug: "smartphones" },
+  { name: "Gaming", slug: "gaming" },
+]
+
+async function rendreLePied(
+  structuresDuCatalogue: readonly { name: string; slug: string }[] = structures
+): Promise<string> {
+  const flux = await renderToReadableStream(
+    <StorefrontFooter structures={structuresDuCatalogue} />
+  )
   await flux.allReady
   return new Response(flux).text()
 }
@@ -23,8 +32,10 @@ function rangeeLegale(html: string): string {
   return html.split('data-slot="rangée-légale"')[1] ?? ""
 }
 
-function echapper(texte: string): string {
-  return texte.replaceAll("'", "&#x27;")
+function attendLeTexte(html: string, texte: string): void {
+  for (const segment of texte.split("'")) {
+    expect(html).toContain(segment)
+  }
 }
 
 describe("StorefrontFooter — les pages de la boutique", () => {
@@ -80,7 +91,7 @@ describe("StorefrontFooter — les pages de la boutique", () => {
   it("porte le tagline, les deux promesses et le téléphone dans la bande", async () => {
     const bande = bandeAssurance(await rendreLePied())
 
-    expect(bande).toContain(echapper(site.tagline))
+    attendLeTexte(bande, site.tagline)
     expect(bande).toContain(assurancePiedDePage.paiement)
     expect(bande).toContain(assurancePiedDePage.livraison)
     expect(bande).toContain(assurancePiedDePage.telephone)
@@ -100,6 +111,40 @@ describe("StorefrontFooter — les pages de la boutique", () => {
     const html = await rendreLePied()
 
     expect(html).not.toContain("/brand/eguidar-logo.svg")
-    expect(html).toContain(echapper(site.tagline))
+    attendLeTexte(html, site.tagline)
+  })
+
+  it("ouvre le Catalogue par Tous les produits puis par chaque Structure", async () => {
+    const html = await rendreLePied()
+
+    expect(html).toContain('data-section="la-boutique"')
+    expect(html).toContain('href="/produits"')
+    expect(html).toContain("Tous les produits")
+
+    const positions = [
+      html.indexOf('href="/produits"'),
+      ...structures.map((structure) =>
+        html.indexOf(`href="/categorie/${structure.slug}"`)
+      ),
+    ]
+    expect(positions.every((position) => position >= 0)).toBe(true)
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
+
+    for (const structure of structures) {
+      expect(html).toContain(structure.name)
+    }
+  })
+
+  it("ne rend ni la section ni la colonne sans Structure", async () => {
+    const html = await rendreLePied([])
+
+    expect(html).not.toContain('data-section="la-boutique"')
+    expect(html).not.toContain("La boutique")
+    expect(html).not.toContain("Tous les produits")
+    expect(html).not.toContain('href="/produits"')
+    expect(html).not.toContain('href="/categorie/')
+    expect(
+      html.split('data-slot="section-pied-de-page"').slice(1)
+    ).toHaveLength(3)
   })
 })

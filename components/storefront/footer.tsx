@@ -9,6 +9,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
 import { assurancePiedDePage, site } from "@/lib/site"
+import type { NavCategory } from "@/lib/use-cases/storefront"
 import { cn } from "@/lib/utils"
 
 type LienDePied = { href: string; libelle: string }
@@ -19,56 +20,67 @@ type SectionDePied = {
 }
 type ColonneDePied = { id: string; sections: readonly SectionDePied[] }
 
-const colonnesDuPied: readonly ColonneDePied[] = [
-  {
-    id: "boutique",
-    sections: [
-      {
-        id: "la-boutique",
-        titre: "La boutique",
-        liens: [
-          { href: "/", libelle: "Accueil" },
-          { href: "/produits", libelle: "Tous les produits" },
-        ],
-      },
-    ],
-  },
-  {
-    id: "compte",
-    sections: [
-      {
-        id: "mon-compte",
-        titre: "Mon compte",
-        liens: [
-          { href: "/commandes", libelle: "Mes commandes" },
-          { href: "/panier", libelle: "Mon panier" },
-          { href: "/profil", libelle: "Mon profil" },
-        ],
-      },
-    ],
-  },
-  {
-    id: "services",
-    sections: [
-      {
-        id: "aide",
-        titre: "Aide",
-        liens: [
-          { href: "/faq", libelle: "FAQ" },
-          { href: "/contact", libelle: "Contact" },
-        ],
-      },
-      {
-        id: "la-maison",
-        titre: "La maison",
-        liens: [
-          { href: "/a-propos", libelle: "À propos" },
-          { href: "/blog", libelle: "Blog" },
-        ],
-      },
-    ],
-  },
-]
+function colonnesDuPied(
+  structures: readonly NavCategory[]
+): readonly ColonneDePied[] {
+  return [
+    ...(structures.length > 0
+      ? [
+          {
+            id: "boutique",
+            sections: [
+              {
+                id: "la-boutique",
+                titre: "La boutique",
+                liens: [
+                  { href: "/produits", libelle: "Tous les produits" },
+                  ...structures.map((structure) => ({
+                    href: `/categorie/${structure.slug}`,
+                    libelle: structure.name,
+                  })),
+                ],
+              },
+            ],
+          },
+        ]
+      : []),
+    {
+      id: "compte",
+      sections: [
+        {
+          id: "mon-compte",
+          titre: "Mon compte",
+          liens: [
+            { href: "/commandes", libelle: "Mes commandes" },
+            { href: "/panier", libelle: "Mon panier" },
+            { href: "/profil", libelle: "Mon profil" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "services",
+      sections: [
+        {
+          id: "aide",
+          titre: "Aide",
+          liens: [
+            { href: "/faq", libelle: "FAQ" },
+            { href: "/contact", libelle: "Contact" },
+          ],
+        },
+        {
+          id: "la-maison",
+          titre: "La maison",
+          liens: [
+            { href: "/a-propos", libelle: "À propos" },
+            { href: "/blog", libelle: "Blog" },
+          ],
+        },
+      ],
+    },
+  ]
+}
 
 const liensLegaux: readonly LienDePied[] = [
   { href: "/conditions", libelle: "Conditions & livraison" },
@@ -97,7 +109,11 @@ function SectionDuPied({ section }: { section: SectionDePied }) {
   )
 }
 
-export function StorefrontFooter() {
+export function StorefrontFooter({
+  structures,
+}: {
+  structures: readonly NavCategory[]
+}) {
   return (
     <footer
       aria-labelledby="pied-de-page-titre"
@@ -111,7 +127,7 @@ export function StorefrontFooter() {
           aria-label="Liens du pied de page"
           className="grid gap-8 sm:grid-cols-2 md:grid-cols-3"
         >
-          {colonnesDuPied.map((colonne) => (
+          {colonnesDuPied(structures).map((colonne) => (
             <div key={colonne.id} className="flex flex-col gap-6">
               {colonne.sections.map((section) => (
                 <SectionDuPied key={section.id} section={section} />
