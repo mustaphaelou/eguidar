@@ -87,10 +87,13 @@ export async function supprimerDonneesFacebook(
 
     await tx.verification.deleteMany({
       where: {
-        OR: clients.flatMap(({ email }) => [
-          { identifier: { endsWith: `-otp-${email}` } },
-          { identifier: { contains: `-otp-${email}-` } },
-        ]),
+        identifier: {
+          in: clients.flatMap(({ email }) => [
+            `sign-in-otp-${email}`,
+            `email-verification-otp-${email}`,
+            `forget-password-otp-${email}`,
+          ]),
+        },
       },
     })
 
