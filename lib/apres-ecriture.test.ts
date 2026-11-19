@@ -70,14 +70,12 @@ describe("la déclaration de Commande", () => {
     expect(effets(changementDeStatut())).toEqual(["email"])
   })
 
-  it("garde l'e-mail durable sans réparation", () => {
-    const plan = creation()
-
-    expect(plan.consequences.map((consequence) => consequence.durable)).toEqual(
-      [true]
-    )
-    for (const consequence of plan.consequences) {
-      expect(consequence.reparation).toBeUndefined()
+  it("ne déclare qu'un Fait et une conséquence durable par genre", () => {
+    for (const plan of [creation(), changementDeStatut()]) {
+      expect(plan.faits).toHaveLength(1)
+      expect(plan.consequences).toHaveLength(1)
+      expect(plan.consequences[0]!.durable).toBe(true)
+      expect(plan.consequences[0]!.reparation).toBeUndefined()
     }
   })
 
