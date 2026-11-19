@@ -7,8 +7,12 @@ L'habillage reprend celui d'apple.com : la palette, la typographie et le Voile d
 ## Language
 
 **Bandeau de navigation**:
-La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche et le déclencheur de l'**Aperçu du Panier**, présente sur toute page de la boutique. Distincte de la **Barre d'achat**, fixée en bas sur mobile, et du bandeau de l'Administration. Il ne porte aucune entrée vers les pages de la boutique — À propos, Contact, FAQ, Blog, Conditions & livraison — que seul le pied de page porte. Il ne porte pas de déclencheur de Connexion : l'entrée du Compte appartient à l'Aperçu du Panier.
+La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche et le déclencheur de l'**Aperçu du Panier**, présente sur toute page de la boutique. Distincte de la **Barre d'achat**, fixée en bas sur mobile, et du bandeau de l'Administration. Il ne porte aucune entrée vers les pages de la boutique — À propos, Contact, FAQ, Blog, Conditions & livraison — que seul le **Pied de page** porte. Il ne porte pas de déclencheur de Connexion : l'entrée du Compte est portée par l'**Aperçu du Panier** et par la section « Mon compte » du **Pied de page**.
 _Avoid_: header, navbar, barre de navigation, barre du haut
+
+**Pied de page**:
+La surface en bas des pages de la boutique qui porte son annuaire : quatre sections — « La boutique », « Mon compte », « Aide » et « La maison » — déclarées comme données et rendues comme des disclosures natives ouvertes dès le HTML serveur, sans composant client. Le tout est un repère `contentinfo` nommé, ses colonnes un repère de navigation au libellé français, et chaque destination n'y figure qu'une fois. La rangée légale, déclarée à part, ne porte que le copyright, la licence MIT, Conditions & livraison et Suppression des données.
+_Avoid_: footer, bas de page, pied, annuaire (comme nom du concept)
 
 **Voile dépoli**:
 Le matériau translucide posé par-dessus un contenu qui défile, pour qu'une surface fixe reste lisible : le **Bandeau de navigation** et les modales de Connexion et d'Inscription. Un seul matériau et une seule recette : son épaisseur varie d'une surface à l'autre — opacité, flou et saturation. Il ne porte aucun contenu, et le porter n'est jamais un choix de la surface — le **Bandeau de navigation** ne le porte qu'une fois la page défilée, les modales en permanence. Une feuille plein cadre qui recouvre la page, comme le panneau de Filtres sur mobile, ne le porte pas : elle a son propre fond. L'**Aperçu du Panier** fait exception : sa feuille porte le matériau, plus épais, parce qu'elle fournit le fond du **Bandeau de navigation**.
@@ -629,7 +633,7 @@ sous-domaine s'arrête sur l'erreur 503 de l'origine.
 _Avoid_: domaine principal, canonical domain
 
 **Logo**:
-Le lockup complet de la boutique — « eguidar. » au-dessus du « COM » serif et de son filet — affiché dans le Bandeau de navigation et le pied de page.
+Le lockup complet de la boutique — « eguidar. » au-dessus du « COM » serif et de son filet — affiché dans le Bandeau de navigation et le **Pied de page**.
 _Avoid_: logotype, symbole, marque (réservée aux marques de produits)
 
 **Icône de site**:
