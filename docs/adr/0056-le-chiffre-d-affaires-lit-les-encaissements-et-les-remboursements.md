@@ -51,3 +51,9 @@
 ## Amendement d'ADR-0009
 
 La règle d'ADR-0009 — « le Chiffre d'affaires encaissé ne compte que les Commandes Livrées » — est remplacée par la présente décision. `Livrée` reste l'instant où le Paiement à la livraison produit son Encaissement, mais la lecture somme les lignes d'argent : un Encaissement peut survivre à une Commande qui n'est plus Livrée, et un Remboursement réduit le net sans changer le Statut. Les deux gardes citées par ADR-0009 restent des preuves de lecture du montant persisté, désormais portées par les Encaissements.
+
+## Amendement — La Transition de statut manuelle n'offre pas `Retournée` (#1104, 2026-11-19)
+
+L'invariant « une Annulation réapprovisionne toutes les unités de la Commande ; le passage à `Retournée` par une Transition de statut ne réapprovisionne rien » est renforcé : le passage manuel à `Retournée` n'est plus offert du tout. La matrice de transitions se lit désormais dans deux tables. `TRANSITIONS_TOUTES_VOIES` conserve toutes les voies, y compris la clôture du Retour, et est la seule à nommer `Retournée`. `TRANSITIONS_ADMINISTRATION` ne contient que ce que les boutons d'Administration offrent et ne nomme jamais `Retournée`. `transitionsDisponibles` lit la table Administration, et `updateOrderStatus` refuse toute cible qu'elle n'offre pas avec `InvalidOrderTransitionError`. Seule la transaction de réception du Retour, qui lit la table toutes voies, écrit `Retournée` une fois toutes les unités commandées reçues.
+
+Aucune lecture de Chiffre d'affaires ne change : le Statut ne porte toujours aucun prédicat d'argent, et l'Encaissement et le Remboursement restent des faits distincts de la réception des marchandises. Une propriété sur les trente-six paires de Statuts garantit que la table Administration est incluse dans la table toutes voies et qu'aucune arête Administration ne vise `Retournée`.
