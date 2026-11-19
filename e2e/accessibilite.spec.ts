@@ -12,11 +12,7 @@ function declencheurDuPanier(page: Page): Locator {
 }
 
 function rangeeLegale(page: Page): Locator {
-  return page
-    .getByRole("contentinfo")
-    .locator("div")
-    .filter({ hasText: "Le code est sous" })
-    .last()
+  return page.locator('[data-slot="rangée-légale"]')
 }
 
 function rapportDeContraste(texte: Locator): Promise<number> {
@@ -135,15 +131,12 @@ test.describe("21. les cibles des liens légaux du Pied de page", () => {
     await ouvrirLaBoutique(page, serveur.origine, "/")
 
     const liens = rangeeLegale(page).getByRole("link")
-    await expect(liens).toHaveCount(6)
+    await expect(liens).toHaveCount(3)
 
     const libelles = [
       "licence MIT",
-      "À propos",
-      "Contact",
-      "FAQ",
-      "Blog",
       "Conditions & livraison",
+      "Suppression des données",
     ]
     for (const libelle of libelles) {
       const lien = rangeeLegale(page).getByRole("link", {

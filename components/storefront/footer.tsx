@@ -5,57 +5,127 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Logo } from "@/components/storefront/logo"
 import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
-import { site, staticPages } from "@/lib/site"
+import { site } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
-const shopLinks = [{ href: "/", label: "Accueil" }, ...staticPages]
+type LienDePied = { href: string; libelle: string }
+type SectionDePied = {
+  id: string
+  titre: string
+  liens: readonly LienDePied[]
+}
+type ColonneDePied = { id: string; sections: readonly SectionDePied[] }
 
-const accountLinks = [
-  { href: "/commandes", label: "Mes commandes" },
-  { href: "/panier", label: "Mon panier" },
-  { href: "/profil", label: "Mon profil" },
+const colonnesDuPied: readonly ColonneDePied[] = [
+  {
+    id: "boutique",
+    sections: [
+      {
+        id: "la-boutique",
+        titre: "La boutique",
+        liens: [
+          { href: "/", libelle: "Accueil" },
+          { href: "/produits", libelle: "Tous les produits" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "compte",
+    sections: [
+      {
+        id: "mon-compte",
+        titre: "Mon compte",
+        liens: [
+          { href: "/commandes", libelle: "Mes commandes" },
+          { href: "/panier", libelle: "Mon panier" },
+          { href: "/profil", libelle: "Mon profil" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "services",
+    sections: [
+      {
+        id: "aide",
+        titre: "Aide",
+        liens: [
+          { href: "/faq", libelle: "FAQ" },
+          { href: "/contact", libelle: "Contact" },
+        ],
+      },
+      {
+        id: "la-maison",
+        titre: "La maison",
+        liens: [
+          { href: "/a-propos", libelle: "À propos" },
+          { href: "/blog", libelle: "Blog" },
+        ],
+      },
+    ],
+  },
 ]
 
-function LinkColumn({
-  title,
-  links,
-}: {
-  title: string
-  links: readonly { href: string; label: string }[]
-}) {
+const liensLegaux: readonly LienDePied[] = [
+  { href: "/conditions", libelle: "Conditions & livraison" },
+  { href: "/suppression-donnees", libelle: "Suppression des données" },
+]
+
+function SectionDuPied({ section }: { section: SectionDePied }) {
   return (
-    <div>
-      <p className="text-xs font-semibold">{title}</p>
+    <details open data-slot="section-pied-de-page" data-section={section.id}>
+      <summary className="cursor-pointer py-1 text-xs font-semibold">
+        <h3 className="inline">{section.titre}</h3>
+      </summary>
       <ul className="mt-2 flex flex-col gap-1 text-xs">
-        {links.map((link) => (
-          <li key={link.href}>
+        {section.liens.map((lien) => (
+          <li key={lien.href}>
             <Link
-              href={link.href}
-              className="block rounded-full px-2 py-1 text-muted-foreground transition-colors hover:text-foreground"
+              href={lien.href}
+              className="block rounded-full px-2 py-1 text-muted-foreground hover:text-foreground motion-safe:transition-colors"
             >
-              {link.label}
+              {lien.libelle}
             </Link>
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   )
 }
 
 export function StorefrontFooter() {
   return (
-    <footer className="border-t border-border bg-muted">
+    <footer
+      aria-labelledby="pied-de-page-titre"
+      className="border-t border-border bg-muted"
+    >
+      <h2 id="pied-de-page-titre" className="sr-only">
+        Pied de page
+      </h2>
       <div className={cn(CONTENEUR_BOUTIQUE, "py-10")}>
-        <div className="grid gap-10 sm:grid-cols-2 md:grid-cols-3">
-          <div>
+        <div className="flex flex-col gap-8 md:flex-row md:gap-16">
+          <div className="shrink-0">
             <Logo />
-            <p className="mt-2 text-xs text-muted-foreground">{site.tagline}</p>
+            <p className="mt-2 max-w-xs text-xs text-muted-foreground">
+              {site.tagline}
+            </p>
           </div>
-          <LinkColumn title="La boutique" links={shopLinks} />
-          <LinkColumn title="Informations" links={accountLinks} />
+          <nav
+            aria-label="Liens du pied de page"
+            className="grid flex-1 gap-8 sm:grid-cols-2 md:grid-cols-3"
+          >
+            {colonnesDuPied.map((colonne) => (
+              <div key={colonne.id} className="flex flex-col gap-6">
+                {colonne.sections.map((section) => (
+                  <SectionDuPied key={section.id} section={section} />
+                ))}
+              </div>
+            ))}
+          </nav>
         </div>
 
-        <section className="mt-8 border-t border-border pt-6 text-xs text-muted-foreground">
+        <div className="mt-8 border-t border-border pt-6 text-xs text-muted-foreground">
           <div className="flex flex-col gap-2.5">
             <p className="flex items-start gap-2.5">
               <HugeiconsIcon
@@ -65,10 +135,7 @@ export function StorefrontFooter() {
               />
               <span>
                 Paiement à la livraison. TVA 20% incluse sur tous les prix
-                affichés.{" "}
-                <Link href="/conditions" className="text-link underline">
-                  En savoir plus
-                </Link>
+                affichés.
               </span>
             </p>
             <p className="flex items-start gap-2.5">
@@ -79,41 +146,42 @@ export function StorefrontFooter() {
               />
               <span>
                 Livraison rapide partout au Maroc. Frais selon la ville, offerte
-                dès un certain montant.{" "}
-                <Link href="/conditions" className="text-link underline">
-                  Voir les tarifs
-                </Link>
+                dès un certain montant.
               </span>
             </p>
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-x-2">
-            <span>
-              © {site.name} — Le code est sous{" "}
-              <a
-                href={site.licenseUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex min-h-6 min-w-6 items-center justify-center text-link underline"
+        </div>
+
+        <div
+          data-slot="rangée-légale"
+          className="mt-6 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground"
+        >
+          <span>
+            © {site.name} — Le code est sous{" "}
+            <a
+              href={site.licenseUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-6 min-w-6 items-center justify-center text-link underline"
+            >
+              licence MIT
+            </a>
+            .
+          </span>
+          {liensLegaux.map((lien, index) => (
+            <span key={lien.href} className="flex items-center gap-x-2">
+              {index > 0 ? (
+                <span aria-hidden="true" className="h-2.5 w-px bg-border" />
+              ) : null}
+              <Link
+                href={lien.href}
+                className="inline-flex min-h-6 min-w-6 items-center justify-center hover:text-foreground"
               >
-                licence MIT
-              </a>
-              .
+                {lien.libelle}
+              </Link>
             </span>
-            {staticPages.map((link, index) => (
-              <span key={link.href} className="flex items-center gap-x-2">
-                {index > 0 ? (
-                  <span aria-hidden="true" className="h-2.5 w-px bg-border" />
-                ) : null}
-                <Link
-                  href={link.href}
-                  className="inline-flex min-h-6 min-w-6 items-center justify-center hover:text-foreground"
-                >
-                  {link.label}
-                </Link>
-              </span>
-            ))}
-          </div>
-        </section>
+          ))}
+        </div>
       </div>
     </footer>
   )
