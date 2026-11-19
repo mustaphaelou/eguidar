@@ -232,3 +232,24 @@ test.describe("24. les filets de la bande d'assurance du Pied de page", () => {
     expect(parseFloat(filetDeLaRangeeLegale)).toBeGreaterThan(0)
   })
 })
+
+test.describe("25. l'encre de l'annuaire du Pied de page", () => {
+  test("25. l'encre des liens d'annuaire atteint 7:1 sur la surface du Pied", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const lien = page
+      .locator('[data-slot="section-pied-de-page"]')
+      .first()
+      .getByRole("link", { name: "Tous les produits", exact: true })
+    await expect(lien).toBeVisible()
+
+    const ratio = await rapportDeContraste(lien)
+    expect(
+      ratio,
+      `l'encre d'annuaire ne donne que ${ratio.toFixed(2)}:1 sur le Pied`
+    ).toBeGreaterThanOrEqual(7)
+  })
+})
