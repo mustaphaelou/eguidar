@@ -251,7 +251,7 @@ describe("useCommandeListing", () => {
     )
     expect(pushedHrefs).toHaveLength(1)
     expect(pushedHrefs).toEqual([
-      "/admin/commandes?pageSize=20&statut=returned&q=alix",
+      "/admin/commandes?pageSize=20&q=alix&statut=returned",
     ])
     expect(latest!.view.statuses).toEqual(["returned"])
     expect(latest!.view.pageIndex).toBe(0)

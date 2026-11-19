@@ -19,7 +19,7 @@ import {
   type CommandeListingParams,
 } from "@/lib/commande-listing"
 import { estStatut } from "@/lib/statut-de-commande"
-import { PAGE_SIZES } from "@/lib/table-config"
+import { PAGE_SIZES } from "@/lib/admin-listing"
 
 const SEARCH_DEBOUNCE_MS = 300
 
