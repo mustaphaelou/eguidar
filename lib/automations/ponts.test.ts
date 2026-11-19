@@ -110,6 +110,8 @@ describe("le pont du Catalogue", () => {
     })
     const plan = declarerApresEcriture("variante.stock.changee", {
       produitId: produit.id,
+      slug: produit.slug,
+      categoryId: produit.categoryId,
     })
     const reindexation = plan.consequences.find(
       (consequence) => consequence.effet === "reindexation"
@@ -117,7 +119,11 @@ describe("le pont du Catalogue", () => {
     const pont = creerPont(
       "variante.stock.changee",
       "variante.stock.changee",
-      { produitId: produit.id },
+      {
+        produitId: produit.id,
+        slug: produit.slug,
+        categoryId: produit.categoryId,
+      },
       dependances
     )
 

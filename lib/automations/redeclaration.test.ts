@@ -138,12 +138,12 @@ describe("la redéclaration du plan depuis la Charge", () => {
     )
   })
 
-  it("redéclare variante.stock.changee malgré une Charge qui ne porte que l'id", () => {
+  it("redéclare variante.stock.changee avec l'identité Catalogue de la Charge", () => {
     verifierRedeclaration(
       "variante.stock.changee",
       "variante.stock.changee",
       { produitId: PRODUIT, slug: SLUG, categoryId: CATEGORIE },
-      { produitId: PRODUIT }
+      { produitId: PRODUIT, slug: SLUG, categoryId: CATEGORIE }
     )
   })
 

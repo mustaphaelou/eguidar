@@ -1262,10 +1262,11 @@ describe("admin catalog mutations", () => {
     ).resolves.toBeNull()
   })
 
-  it("le stock d'une Variante réindexe puis invalide, dans l'ordre déclaré", async () => {
+  it("le stock d'une Variante réindexe, invalide puis purge le bord, dans l'ordre déclaré", async () => {
     const produit = await createProduct(makeInput({ slug: slug("stock") }), {
       reindexProducts: async () => {},
       revalidateCatalog: () => {},
+      purgeCatalogue: () => {},
     })
     const variante = produit.variants[0]!
     const appels: string[] = []
@@ -1275,17 +1276,24 @@ describe("admin catalog mutations", () => {
     const revalidateCatalog = vi.fn(() => {
       appels.push("invalidation")
     })
+    const purgeCatalogue = vi.fn(() => {
+      appels.push("purge")
+    })
 
     const misAJour = await updateVariantStock(variante.id, 2, {
       reindexProducts,
       revalidateCatalog,
+      purgeCatalogue,
     })
 
-    expect(appels).toEqual(["réindexation", "invalidation"])
+    expect(appels).toEqual(["réindexation", "invalidation", "purge"])
     expect(reindexProducts).toHaveBeenCalledWith([
       expect.objectContaining({ id: produit.id, totalStock: 2 }),
     ])
     expect(revalidateCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ id: produit.id, slug: produit.slug })
+    )
+    expect(purgeCatalogue).toHaveBeenCalledWith(
       expect.objectContaining({ id: produit.id, slug: produit.slug })
     )
     expect(misAJour.variants.find((v) => v.id === variante.id)).toMatchObject({
@@ -1298,17 +1306,26 @@ describe("admin catalog mutations", () => {
     expect(evenements).toHaveLength(1)
     expect(evenements[0]).toMatchObject({
       entityType: "produit",
-      payload: { produitId: produit.id },
+      payload: {
+        produitId: produit.id,
+        slug: produit.slug,
+        categoryId: produit.categoryId,
+      },
     })
   })
 
   it("invalide le cache même quand la réindexation du stock échoue", async () => {
     const produit = await createProduct(
       makeInput({ slug: slug("stock-echec") }),
-      { reindexProducts: async () => {}, revalidateCatalog: () => {} }
+      {
+        reindexProducts: async () => {},
+        revalidateCatalog: () => {},
+        purgeCatalogue: () => {},
+      }
     )
     const variante = produit.variants[0]!
     const revalidateCatalog = vi.fn()
+    const purgeCatalogue = vi.fn()
 
     const misAJour = await verifierFrontiereBestEffort(
       "réindexation",
@@ -1316,10 +1333,12 @@ describe("admin catalog mutations", () => {
         updateVariantStock(variante.id, 3, {
           reindexProducts: effetQuiEchoue,
           revalidateCatalog,
+          purgeCatalogue,
         })
     )
 
     expect(revalidateCatalog).toHaveBeenCalledOnce()
+    expect(purgeCatalogue).toHaveBeenCalledOnce()
     expect(misAJour.variants.find((v) => v.id === variante.id)).toMatchObject({
       stock: 3,
     })

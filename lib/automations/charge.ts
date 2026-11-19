@@ -84,6 +84,8 @@ export const chargeProduitSupprimeSchema = z.object({
 
 export const chargeVarianteStockChangeeSchema = z.object({
   produitId: z.string().min(1),
+  slug: z.string().min(1),
+  categoryId: z.string().nullable(),
 })
 
 export const chargeStructureCreeeSchema = z.object({

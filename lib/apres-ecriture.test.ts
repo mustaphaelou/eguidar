@@ -660,7 +660,7 @@ describe("les Règles par défaut dérivées de la déclaration", () => {
 })
 
 describe("la déclaration de variante.stock.changee", () => {
-  it("réindexe durablement puis invalide le cache, réparé par le TTL", () => {
+  it("réindexe durablement, invalide le cache puis purge le bord, réparés par le TTL", () => {
     const plan = declarerApresEcriture("variante.stock.changee", {
       produitId: PRODUIT,
       slug: SLUG,
@@ -672,12 +672,16 @@ describe("la déclaration de variante.stock.changee", () => {
         declencheur: "variante.stock.changee",
         entite: "produit",
         identifiant: PRODUIT,
-        charge: { produitId: PRODUIT },
+        charge: { produitId: PRODUIT, slug: SLUG, categoryId: CATEGORIE },
       },
     ])
-    expect(effets(plan)).toEqual(["reindexation", "invalidation-cache"])
+    expect(effets(plan)).toEqual([
+      "reindexation",
+      "invalidation-cache",
+      "purge-catalogue",
+    ])
     expect(durable(plan)).toEqual(["reindexation"])
-    expect(actions(plan)).toEqual(["index.produit"])
+    expect(actions(plan)).toEqual(["index.produit", "purge.catalogue"])
 
     const invalidation = plan.consequences.find(
       (consequence) => consequence.effet === "invalidation-cache"
@@ -686,6 +690,22 @@ describe("la déclaration de variante.stock.changee", () => {
       durable: false,
       reparation: "TTL",
       entite: { type: "produit", id: PRODUIT },
+      payload: {
+        produit: { id: PRODUIT, slug: SLUG, categoryId: CATEGORIE },
+      },
+    })
+
+    const purge = plan.consequences.find(
+      (consequence) => consequence.effet === "purge-catalogue"
+    )
+    expect(purge).toMatchObject({
+      action: "purge.catalogue",
+      durable: false,
+      reparation: "TTL",
+      entite: { type: "produit", id: PRODUIT },
+      payload: {
+        produit: { id: PRODUIT, slug: SLUG, categoryId: CATEGORIE },
+      },
     })
   })
 })

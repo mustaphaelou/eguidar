@@ -13,7 +13,7 @@ The repository speaks French and most prompts do not. This table is the shortest
 | quote | Devis | [`lib/use-cases/devis.ts`](../lib/use-cases/devis.ts) — the one quote read |
 | delivery city | Ville de livraison | [`lib/use-cases/livraison.ts`](../lib/use-cases/livraison.ts) — cities, fees and the free-shipping settings |
 | shipping fee | Frais de livraison | [`lib/use-cases/livraison-prix.ts`](../lib/use-cases/livraison-prix.ts) — fee and threshold computation |
-| order | Commande | [`lib/use-cases/orders.ts`](../lib/use-cases/orders.ts) — checkout, lifecycle and status change |
+| order | Commande | [`lib/use-cases/orders.ts`](../lib/use-cases/orders.ts) — checkout, lifecycle and status change; [`lib/use-cases/commande.ts`](../lib/use-cases/commande.ts) — the stock seam |
 | order status | Statut de commande | [`lib/statut-de-commande.ts`](../lib/statut-de-commande.ts) — transitions and labels |
 
 ## Money and returns

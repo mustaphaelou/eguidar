@@ -72,7 +72,7 @@ describe("le carnet de sortie des automatisations", () => {
         type: "variante.stock.changee",
         entityType: "produit",
         entityId: premiere,
-        payload: { produitId: premiere },
+        payload: { produitId: premiere, slug: "slug-a", categoryId: null },
       })
       await enregistrerEvenement(tx, {
         type: "produit.enregistre",
