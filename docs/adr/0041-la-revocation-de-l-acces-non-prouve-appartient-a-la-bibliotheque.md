@@ -78,3 +78,39 @@ prouve l'adresse est celle qui vient de choisir le mot de passe.
   `credential` ni les sessions d'un Compte client lors d'une promotion d'adresse.
 - Cette décision ne change ni le schéma Prisma, ni la migration, ni l'interface, ni le stockage des
   codes, ni le résolveur d'adresse client.
+
+## Amendement — le doublon d'Inscription est le signal (#1082)
+
+Le corps écartait la couture maison faute de signal permettant de distinguer le mot de passe que le
+Client vient de choisir de celui qu'un tiers a posé. Ce motif tenait pour la Vérification de l'e-mail,
+où la personne qui prouve l'adresse est celle qui a choisi le mot de passe. Il ne tient pas pour
+l'Inscription sur une adresse déjà connue : le callback
+`emailAndPassword.onExistingUserSignUp` reçoit la ligne préexistante, et cette réception est le signal
+que le corps disait absent.
+
+**Le doublon révoque l'accès non prouvé de la ligne préexistante quand elle est non vérifiée.** Le
+callback appelle le même `revokeUnprovenAccountAccess` que `/sign-in/email-otp` : les comptes
+`credential` et les sessions de la ligne sont supprimés, puis la bibliothèque la promeut. Une ligne
+déjà vérifiée est laissée intacte, et une première Inscription n'a pas de ligne préexistante : son mot
+de passe survit à la Vérification et authentifie la Connexion suivante. Aucune couture de Vérification
+et aucune révocation réécrite dans le dépôt ne reviennent ; le contrôle reste entier et tenant par la
+bibliothèque.
+
+**Le coût accepté** est celui du propriétaire de la boîte qui arrive sur une ligne préinscrite par un
+tiers : il n'hérite pas d'un secret qu'il n'a pas choisi, mais il n'en a pas non plus à l'issue du
+doublon. Il prouve l'adresse par l'échange du code, qui ouvre la Session, puis choisit un mot de passe
+par la Réinitialisation du mot de passe. C'est un second passage, pas un second flux : le mot de passe
+reste le secret de la Connexion suivante. Un tiers peut donc détruire le mot de passe d'une ligne non
+vérifiée en tentant une Inscription sur cette adresse ; sur une adresse non prouvée, aucun secret posé
+dessus n'était fiable, et le propriétaire de la boîte garde la main.
+
+La promotion faite par le helper après le nettoyage est la même que sur la Connexion par code : elle
+ne devient pas une preuve de boîte supplémentaire. Sans compte `credential` ni session, la ligne ne
+rentre que par l'échange du code ou par un fournisseur social qui atteste l'adresse. L'invariant
+« l'application ne réimplémente pas la révocation » s'étend à ce callback : aucun module du dépôt ne
+supprime les comptes `credential` ni les sessions d'un Compte client lors d'une promotion d'adresse.
+Ni schéma, ni migration, ni dépendance, ni terme du glossaire ne changent. Les suites
+`auth-inscription-verification-connexion.test.ts` et `auth-inscription-dupliquee.test.ts` épinglent
+le parcours normal et les quatre issues du doublon ; la frontière
+`verification-email-frontiere.test.ts` vérifie que le callback est enregistré sur
+`emailAndPassword.onExistingUserSignUp` et qu'aucune couture de Vérification ne reparaît.
