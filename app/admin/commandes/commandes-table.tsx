@@ -10,6 +10,7 @@ import { Search01Icon } from "@hugeicons/core-free-icons"
 import {
   DataTablePagination,
   DataTableToolbar,
+  useListingTable,
   type DataTableFacetedFilterOption,
 } from "@/components/data-table"
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
@@ -29,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  COMMANDE_LISTING,
   DATE_COLUMN_ID,
   STATUT_COLUMN_ID,
   TOTAL_COLUMN_ID,
@@ -38,8 +40,6 @@ import { formatPrice } from "@/lib/money"
 import { ORDER_STATUS_LABELS, STATUTS_VALIDES } from "@/lib/statut-de-commande"
 import { shortOrderId } from "@/lib/utils"
 import type { AdminOrdersPage, AdminOrderSummary } from "@/lib/use-cases/orders"
-
-import { useCommandeListing } from "./use-commande-listing"
 
 const CLIENT_COLUMN_ID = "Client"
 const ARTICLES_COLUMN_ID = "Articles"
@@ -155,51 +155,25 @@ export function CommandesTable({
   page: AdminOrdersPage
 }) {
   const router = useRouter()
-  const {
-    view,
-    queryDraft,
-    onQueryChange,
-    onSortingChange,
-    onColumnFiltersChange,
-    onPaginationChange,
-    reset,
-  } = useCommandeListing({
+  const { tableOptions, hasActiveCriteria, reset } = useListingTable({
+    listing: COMMANDE_LISTING,
     params,
     pageCount: page.pageCount,
-    navigation: {
-      replace: (href: string) => router.replace(href, { scroll: false }),
-    },
+    replace: (href: string) => router.replace(href, { scroll: false }),
   })
 
   const table = useTable({
     features: dataTableFeatures,
     data: page.orders,
     columns,
-    pageCount: page.pageCount,
-    state: {
-      sorting: [{ id: view.tri, desc: view.sens === "desc" }],
-      pagination: { pageIndex: view.pageIndex, pageSize: view.pageSize },
-      columnFilters:
-        view.statuses.length > 0
-          ? [{ id: STATUT_COLUMN_ID, value: [...view.statuses] }]
-          : [],
-      globalFilter: queryDraft,
-    },
-    onSortingChange,
-    onPaginationChange,
-    onColumnFiltersChange,
-    onGlobalFilterChange: onQueryChange,
-    manualPagination: true,
-    manualSorting: true,
-    manualFiltering: true,
+    ...tableOptions,
   })
-
-  const hasActiveCriteria = view.q.trim().length > 0 || view.statuses.length > 0
 
   return (
     <div className="flex flex-col gap-4">
       <DataTableToolbar
         table={table}
+        onReset={reset}
         searchLabel="Rechercher une commande par nom ou email"
         searchPlaceholder="Rechercher par nom ou email…"
         resultCount={page.totalCount}
