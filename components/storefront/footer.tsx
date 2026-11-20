@@ -38,7 +38,7 @@ const RECETTE_PETIT_TEXTE = "text-[12px] leading-[1.3334] tracking-[-0.01em]"
 const RETOURS_DU_LIEN =
   "hover:text-foreground hover:underline active:opacity-70 motion-safe:transition-[color,opacity]"
 
-function piedDePage(structures: readonly NavCategory[]): PiedDePage {
+function contenuDuPiedDePage(structures: readonly NavCategory[]): PiedDePage {
   const catalogue: SectionDuPiedDePage = {
     id: "la-boutique",
     titre: "La boutique",
@@ -99,7 +99,7 @@ function piedDePage(structures: readonly NavCategory[]): PiedDePage {
   }
 }
 
-function SectionDuPied({ section }: { section: SectionDuPiedDePage }) {
+function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
   return (
     <details
       open
@@ -115,7 +115,6 @@ function SectionDuPied({ section }: { section: SectionDuPiedDePage }) {
         </h3>
         <svg
           aria-hidden="true"
-          data-slot="chevron-pied-de-page"
           viewBox="0 0 16 16"
           className="size-4 shrink-0 text-muted-foreground group-open:rotate-180 motion-safe:transition-transform"
           fill="none"
@@ -150,8 +149,8 @@ export function StorefrontFooter({
 }: {
   structures?: readonly NavCategory[]
 }) {
-  const pied = piedDePage(structures)
-  const [licence, ...documents] = pied.mentions.liens
+  const piedDePage = contenuDuPiedDePage(structures)
+  const [licence, ...documents] = piedDePage.mentions.liens
 
   return (
     <footer
@@ -166,10 +165,10 @@ export function StorefrontFooter({
           aria-label="Liens du pied de page"
           className="grid gap-8 sm:grid-cols-2 md:grid-cols-3"
         >
-          {pied.colonnes.map((colonne) => (
+          {piedDePage.colonnes.map((colonne) => (
             <div key={colonne[0]!.id} className="flex flex-col gap-6">
               {colonne.map((section) => (
-                <SectionDuPied key={section.id} section={section} />
+                <SectionDuPiedDePage key={section.id} section={section} />
               ))}
             </div>
           ))}
@@ -221,7 +220,7 @@ export function StorefrontFooter({
           className={`mt-8 flex flex-wrap items-center gap-x-2 border-t border-hairline pt-6 text-muted-foreground ${RECETTE_PETIT_TEXTE}`}
         >
           <span>
-            {pied.mentions.copyright}{" "}
+            {piedDePage.mentions.copyright}{" "}
             <a
               href={licence!.href}
               target="_blank"
