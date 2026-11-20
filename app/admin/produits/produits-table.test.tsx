@@ -25,8 +25,10 @@ vi.mock("next/image", () => ({
   ),
 }))
 
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }))
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ replace, push: vi.fn(), refresh: vi.fn() }),
 }))
 
 import {
@@ -34,6 +36,10 @@ import {
   type ProduitLotAction,
   type ProduitsTableActions,
 } from "./produits-table"
+import {
+  PRODUIT_STOCK_ZERO,
+  type ProduitListingParams,
+} from "@/lib/produit-listing"
 import type {
   AdminProductsPage,
   FaitsProduitListe,
@@ -94,6 +100,7 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   root = null
+  replace.mockClear()
 })
 
 afterEach(() => {
@@ -230,5 +237,58 @@ describe("ProduitsTable — la sélection et les gestes en lot", () => {
     expect(libelles.some((libelle) => /prix|stock/i.test(libelle ?? ""))).toBe(
       false
     )
+  })
+})
+
+describe("ProduitsTable — la réinitialisation atomique", () => {
+  it("efface recherche, filtres et tri en une navigation en gardant la taille de page", async () => {
+    const params: ProduitListingParams = {
+      q: "chaise",
+      structure: "structure-1",
+      misEnAvant: true,
+      livraisonOfferte: true,
+      stock: PRODUIT_STOCK_ZERO,
+      tri: "prix",
+      sens: "asc",
+      page: 2,
+      pageSize: 20,
+    }
+    rendre(PAGE_2, ACTIONS_VIDES, params)
+
+    const champ = container.querySelector<HTMLInputElement>(
+      'input[placeholder="Rechercher un Produit…"]'
+    )
+    expect(champ?.value).toBe("chaise")
+
+    const bouton = [
+      ...container.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((candidat) => candidat.textContent?.trim() === "Réinitialiser")
+    expect(bouton).toBeDefined()
+    await cliquer(bouton!)
+
+    expect(replace).toHaveBeenCalledTimes(1)
+    expect(replace).toHaveBeenCalledWith("/admin/produits?pageSize=20", {
+      scroll: false,
+    })
+    expect(
+      container.querySelector<HTMLInputElement>(
+        'input[placeholder="Rechercher un Produit…"]'
+      )?.value
+    ).toBe("")
+    for (const titre of [
+      "Structure",
+      "Mise en avant",
+      "Livraison offerte",
+      "Stock",
+    ]) {
+      const declencheur = [
+        ...container.querySelectorAll<HTMLButtonElement>("button"),
+      ].find((candidat) =>
+        candidat.getAttribute("aria-label")?.startsWith(`${titre} —`)
+      )
+      expect(declencheur?.getAttribute("aria-label")).toBe(
+        `${titre} — aucune valeur sélectionnée`
+      )
+    }
   })
 })
