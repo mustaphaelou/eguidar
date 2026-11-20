@@ -244,4 +244,14 @@ La troisième conséquence existait déjà dans les genres de Commande, où elle
 
 La purge reste non durable et sans Règle par défaut : `reglesParDefaut` écarte les conséquences non durables, donc le genre du stock ne gagne aucune Règle d'automatisation et le travailleur ne voit rien de nouveau. La charge du **Fait** s'étend de `produitId` à `slug` et `categoryId`, tous deux lus avec le **Produit** : le document d'index n'a plus à supplier un `slug` vide.
 
-Les conséquences des genres de Commande et la suppression de l'invalidation no-op sont traitées par #1107 ; le présent amendement ne les anticipe pas.
+Les conséquences des genres de Commande et la suppression de l'invalidation no-op sont enregistrées par l'amendement suivant (#1123, issue #1107).
+
+## Amendement — les deux genres de Commande ne déclarent que l'E-mail de commande (2026-11-19)
+
+`commande.creee` et `commande.statut.changee` déclarent chacun un seul **Fait** et une seule
+**Conséquence durable** : l'**E-mail de commande** (`email.commande-creee`, `email.commande-statut`).
+Les champs de fait `produitsDrainés` et `produitsRéapprovisionnés`, les charges utiles
+`invalidation-cache` et `purge-catalogue` et les deux effets qu'elles servaient disparaissent : il ne
+reste aucune conséquence non durable dans ces deux genres. `reglesParDefaut` en tire les mêmes deux
+Règles, sans identité nouvelle ni changement de nombre. La politique de durabilité énoncée plus haut
+reste entière pour les autres genres.

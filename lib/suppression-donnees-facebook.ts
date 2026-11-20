@@ -3,7 +3,6 @@ import { createHmac, timingSafeEqual } from "node:crypto"
 import { TYPE_ENTITE_PAR_DECLENCHEUR } from "@/lib/automations/charge"
 import type { FournisseurSocial } from "@/lib/oauth-providers"
 import { prisma } from "@/lib/db"
-import { invalidateCommande } from "@/lib/use-cases/cache-invalidation"
 
 const FOURNISSEUR_FACEBOOK: FournisseurSocial = "facebook"
 
@@ -52,7 +51,7 @@ export function verifierSignedRequest(
 export async function supprimerDonneesFacebook(
   identifiantApplicatif: string
 ): Promise<void> {
-  const commandes = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const comptes = await tx.account.findMany({
       where: {
         providerId: FOURNISSEUR_FACEBOOK,
@@ -100,11 +99,5 @@ export async function supprimerDonneesFacebook(
     await tx.user.deleteMany({
       where: { id: { in: identifiants } },
     })
-
-    return commandesSupprimees
   })
-
-  for (const commande of commandes) {
-    invalidateCommande(commande.id)
-  }
 }

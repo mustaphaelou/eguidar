@@ -11,8 +11,6 @@ import {
   vi,
 } from "vitest"
 
-import { revalidatePath } from "next/cache"
-
 import {
   TYPE_ENTITE_PAR_DECLENCHEUR,
   type OrderEmailSnapshot,
@@ -371,8 +369,6 @@ describe("POST /api/facebook/suppression-donnees", () => {
     await expect(lignesRestantes(donnees)).resolves.toEqual(
       AUCUNE_LIGNE_RESTANTE
     )
-    expect(revalidatePath).toHaveBeenCalledWith("/commandes")
-    expect(revalidatePath).toHaveBeenCalledWith("/admin/commandes")
   })
 
   it("efface les Événements d'automatisation des Commandes supprimées", async () => {

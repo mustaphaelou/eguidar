@@ -30,14 +30,12 @@ import {
   type EffetsStock,
   type MouvementDeStock,
 } from "@/lib/use-cases/commande"
-import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   messageDeValidation,
 } from "@/lib/use-cases/mutation-squelette"
 import {
   defaultOrderEffects,
-  produitsTouches,
   toOrderEmailSnapshot,
   type OrderEffects,
 } from "@/lib/use-cases/orders"
@@ -526,7 +524,6 @@ export async function recevoirRetour(
     })
     if (recue.count === 0) throw new ReceptionDeRetourImpossibleError()
 
-    const articlesRéapprovisionnés: { variantId: string | null }[] = []
     const mouvements: MouvementDeStock[] = []
     for (const ligne of lignesARecevoir) {
       await tx.returnLine.updateMany({
@@ -541,7 +538,6 @@ export async function recevoirRetour(
       }
       const article = articles.get(ligne.orderItemId)
       if (!article?.variantId) continue
-      articlesRéapprovisionnés.push({ variantId: article.variantId })
       mouvements.push(
         reapprovisionner(article.variantId, ligne.receivedQuantity)
       )
@@ -594,10 +590,6 @@ export async function recevoirRetour(
         commandeId: commande.id,
         snapshot: toOrderEmailSnapshot(commandeClosee, commande.user.email),
         statut: "returned",
-        produitsRéapprovisionnés: await produitsTouches(
-          tx,
-          articlesRéapprovisionnés
-        ),
       })
       await enregistrerFaits(tx, planDeCloture.faits)
     }
@@ -619,6 +611,6 @@ export async function recevoirRetour(
   })
 
   await exécuterStock(ecriture, surcharges ?? {})
-  if (plan) await executerCommande(plan, effects, { structure: lireStructure })
+  if (plan) await executerCommande(plan, effects)
   return recu
 }

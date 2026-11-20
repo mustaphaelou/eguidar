@@ -150,18 +150,6 @@ export async function invalidateCatalogue(
   await purgerEdge(demandeDePurgeCatalogue(product), options.purgeEdge)
 }
 
-export async function invalidateProduits(
-  produits: readonly CatalogueEventProduct[],
-  options: OptionsInvalidationCatalogue = {}
-): Promise<void> {
-  if (produits.length === 0) return
-  const tags = [
-    ...new Set(produits.flatMap((produit) => tagsCatalogue(produit))),
-  ]
-  revaliderTags(tags)
-  await purgerEdge(demandeDePurge(tags), options.purgeEdge)
-}
-
 export function revaliderStructure(): void {
   const tags = tagsStructure()
   revaliderTags(tags)
@@ -190,12 +178,4 @@ export async function invalidateStructureDurable(): Promise<void> {
 export function invalidateLivraison(): void {
   revalidatePath("/admin/villes")
   revalidatePath("/admin/livraison")
-}
-
-export function invalidateCommande(orderId: string): void {
-  revalidatePath("/admin")
-  revalidatePath("/admin/commandes")
-  revalidatePath(`/admin/commandes/${orderId}`)
-  revalidatePath("/commandes")
-  revalidatePath(`/commande/confirmation/${orderId}`)
 }
