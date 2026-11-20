@@ -1129,11 +1129,6 @@ describe("recevoir un Retour", () => {
     const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
       async () => {}
     )
-    const invalidateCommande = vi.fn<OrderEffects["invalidateCommande"]>()
-    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
-      async () => {}
-    )
-
     const recu = await recevoirRetour(
       reception(retour, [
         {
@@ -1150,8 +1145,6 @@ describe("recevoir un Retour", () => {
       {
         sendOrderPlacedEmail,
         sendOrderStatusEmail,
-        invalidateCommande,
-        invalidateProduits,
       }
     )
 
@@ -1176,9 +1169,6 @@ describe("recevoir un Retour", () => {
     expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
     expect(sendOrderStatusEmail.mock.calls[0][0].orderId).toBe(commande.id)
     expect(sendOrderStatusEmail.mock.calls[0][1]).toBe("returned")
-    expect(invalidateCommande).toHaveBeenCalledOnce()
-    expect(invalidateCommande).toHaveBeenCalledWith(commande.id)
-    expect(invalidateProduits).toHaveBeenCalledOnce()
     const variante = await prisma.productVariant.findUniqueOrThrow({
       where: { id: variantId },
     })
@@ -1197,11 +1187,6 @@ describe("recevoir un Retour", () => {
     const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
       async () => {}
     )
-    const invalidateCommande = vi.fn<OrderEffects["invalidateCommande"]>()
-    const invalidateProduits = vi.fn<OrderEffects["invalidateProduits"]>(
-      async () => {}
-    )
-
     const recu = await recevoirRetour(
       reception(retour, [
         {
@@ -1213,16 +1198,12 @@ describe("recevoir un Retour", () => {
       {
         sendOrderPlacedEmail,
         sendOrderStatusEmail,
-        invalidateCommande,
-        invalidateProduits,
       }
     )
 
     expect(recu.commandeClose).toBe(false)
     expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
     expect(sendOrderStatusEmail).not.toHaveBeenCalled()
-    expect(invalidateCommande).not.toHaveBeenCalled()
-    expect(invalidateProduits).not.toHaveBeenCalled()
     expect(
       await prisma.automationEvent.count({
         where: { type: "commande.statut.changee", entityId: commande.id },

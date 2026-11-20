@@ -66,8 +66,6 @@ function inputProduit(suffixe: string): ProductInput {
 const EFFETS_COMMANDE = {
   sendOrderPlacedEmail: async () => {},
   sendOrderStatusEmail: async () => {},
-  invalidateCommande: () => {},
-  invalidateProduits: async () => {},
 }
 
 const EFFETS_CATALOGUE: Partial<CatalogEffects> = {

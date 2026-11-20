@@ -78,3 +78,19 @@ exécution durable garde son statut, sa tentative et son erreur. Les ports `*Eff
 de production, la surcharge partielle, la propriété de chaque module sur son vocabulaire de refus et
 la frontière best-effort des effets non critiques restent tels quels : la frontière décrite ici ne
 vaut plus que pour eux. La publication programmée reste un prédicat de lecture, jamais un job.
+
+## Amendement — la couture Commande a son propre module, sans invalidation co-localisée (2026-11-19)
+
+Le point « Production adapters live inside the mutation modules » ne vaut plus pour la Commande : la
+couture habite désormais `lib/use-cases/apres-ecriture/commande.ts`, qui possède `EffetsCommande` et
+ses deux ports d'e-mail. `lib/use-cases/orders.ts` ne fait que réexporter ce type sous `OrderEffects`
+et fournir `defaultOrderEffects`. Les déclarations de `commande.creee` et de
+`commande.statut.changee` ne portent plus que le **Fait** et l'**E-mail de commande** : aucun port de
+cache ne peut être câblé que la déclaration n'utilise pas.
+
+Le point « Co-located cache invalidation » ne tient plus. `invalidateCommande` revalidait cinq routes
+qui lisent toutes la session à chaque requête : aucune n'a d'entrée de cache, l'appel n'a jamais rien
+invalidé, et dix-sept espions et vingt-et-une assertions épinglaient ce no-op. L'entrée, son frère de
+lotissement `invalidateProduits` et la boucle d'invalidation de la suppression Facebook sont
+supprimés. Les autres points de cet ADR — surcharge partielle, frontière best-effort, tests sans
+effets — restent tels quels.

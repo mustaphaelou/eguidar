@@ -61,16 +61,10 @@ function pontCommande(dependances: DependancesAutomations): PontExecution {
         statut,
         cleIdempotenceEmailStatut(snapshot.orderId, statut)
       ),
-    invalidateCommande: () => {
-      throw new Error("invalidation de Commande non durable : hors travailleur")
-    },
-    invalidateProduits: async () => {
-      throw new Error("purge de Commande non durable : hors travailleur")
-    },
   }
   return {
     executerUne: (consequence) =>
-      executerUneCommande(consequence as ConsequenceCommande, effets, {}),
+      executerUneCommande(consequence as ConsequenceCommande, effets),
   }
 }
 

@@ -231,3 +231,13 @@ qu'elle fut écrite.
   `ville.supprimee`, `livraison.reglee` et `image.texte-alternatif` rendent un plan typé (`PlanLivraison`, `PlanCatalogue`) exécuté par
   l'adaptateur de leur entité (`livraison.ts`, `catalogue.ts`), et non plus par un
   `planDeMaintenance` partagé. L'ancien texte n'est pas réécrit : il reste l'état de #874.
+
+## Amendement — les deux genres de Commande ne déclarent que l'E-mail de commande (2026-11-19)
+
+`commande.creee` et `commande.statut.changee` déclarent chacun un seul **Fait** et une seule
+**Conséquence durable** : l'**E-mail de commande** (`email.commande-creee`, `email.commande-statut`).
+Les champs de fait `produitsDrainés` et `produitsRéapprovisionnés`, les charges utiles
+`invalidation-cache` et `purge-catalogue` et les deux effets qu'elles servaient disparaissent : il ne
+reste aucune conséquence non durable dans ces deux genres. `reglesParDefaut` en tire les mêmes deux
+Règles, sans identité nouvelle ni changement de nombre. La politique de durabilité énoncée plus haut
+reste entière pour les autres genres.
