@@ -66,9 +66,13 @@ afterEach(() => {
 function Tableau({
   selection = {},
   selectedCount,
+  onReset,
+  appels,
 }: {
   selection?: RowSelectionState
   selectedCount?: number
+  onReset?: () => void
+  appels: string[]
 }) {
   const table = useTable({
     features: dataTableFeatures,
@@ -79,11 +83,18 @@ function Tableau({
       rowSelection: selection,
       columnFilters: [{ id: "statut", value: ["pending"] }],
     },
+    onColumnFiltersChange: () => {
+      appels.push("filtres")
+    },
+    onGlobalFilterChange: () => {
+      appels.push("recherche")
+    },
   })
 
   return (
     <DataTableToolbar
       table={table}
+      onReset={onReset}
       searchLabel="Rechercher une commande"
       resultCount={42}
       selectedCount={selectedCount}
@@ -93,14 +104,34 @@ function Tableau({
   )
 }
 
-function rendre(selection?: RowSelectionState, selectedCount?: number) {
+function rendre(
+  selection?: RowSelectionState,
+  selectedCount?: number,
+  onReset?: () => void,
+  appels: string[] = []
+) {
   if (!root) {
     root = createRoot(container)
   }
   act(() => {
     root!.render(
-      <Tableau selection={selection} selectedCount={selectedCount} />
+      <Tableau
+        selection={selection}
+        selectedCount={selectedCount}
+        onReset={onReset}
+        appels={appels}
+      />
     )
+  })
+}
+
+function cliquerRinitialiser() {
+  const bouton = [
+    ...container.querySelectorAll<HTMLButtonElement>("button"),
+  ].find((candidat) => candidat.textContent?.trim() === "Réinitialiser")
+  if (!bouton) throw new Error("bouton Réinitialiser absent")
+  act(() => {
+    bouton.click()
   })
 }
 
@@ -172,5 +203,19 @@ describe("DataTableToolbar — la grille étiquetée", () => {
     expect(parLibelle.get("Expédiée")!.getAttribute("aria-pressed")).toBe(
       "false"
     )
+  })
+
+  it("appelle onReset une seule fois sans déclencher le repli TanStack", () => {
+    const appels: string[] = []
+    rendre(undefined, undefined, () => appels.push("reset"), appels)
+    cliquerRinitialiser()
+    expect(appels).toEqual(["reset"])
+  })
+
+  it("garde le repli TanStack en l'absence de onReset", () => {
+    const appels: string[] = []
+    rendre(undefined, undefined, undefined, appels)
+    cliquerRinitialiser()
+    expect(appels).toEqual(["filtres", "recherche"])
   })
 })
