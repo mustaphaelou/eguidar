@@ -23,6 +23,7 @@ import {
   DataTableColumnHeader,
   DataTablePagination,
   DataTableToolbar,
+  useListingTable,
   type DataTableFacetedFilterOption,
 } from "@/components/data-table"
 import {
@@ -86,6 +87,7 @@ import {
 import {
   ACTIONS_COLUMN_ID,
   DATE_COLUMN_ID,
+  PRODUIT_LISTING,
   LIVRAISON_OFFERTE_COLUMN_ID,
   MISE_EN_AVANT_COLUMN_ID,
   NOM_COLUMN_ID,
@@ -102,8 +104,6 @@ import type {
   AdminProductsPage,
   FaitsProduitListe,
 } from "@/lib/use-cases/admin-catalog"
-
-import { useProduitListing } from "./use-produit-listing"
 
 const STATUT_COLUMN_ID = "statut"
 
@@ -279,20 +279,11 @@ export function ProduitsTable({
   actions: ProduitsTableActions
 }) {
   const router = useRouter()
-  const {
-    view,
-    queryDraft,
-    onQueryChange,
-    onSortingChange,
-    onColumnFiltersChange,
-    onPaginationChange,
-    reset,
-  } = useProduitListing({
+  const { tableOptions, hasActiveCriteria, reset } = useListingTable({
+    listing: PRODUIT_LISTING,
     params,
     pageCount: page.pageCount,
-    navigation: {
-      replace: (href: string) => router.replace(href, { scroll: false }),
-    },
+    replace: (href: string) => router.replace(href, { scroll: false }),
   })
 
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
@@ -571,45 +562,12 @@ export function ProduitsTable({
     features: dataTableFeatures,
     data: page.produits,
     columns,
-    pageCount: page.pageCount,
-    state: {
-      sorting: [{ id: view.tri, desc: view.sens === "desc" }],
-      pagination: { pageIndex: view.pageIndex, pageSize: view.pageSize },
-      columnFilters: [
-        ...(view.structure !== null
-          ? [{ id: STRUCTURE_COLUMN_ID, value: [view.structure] }]
-          : []),
-        ...(view.misEnAvant
-          ? [{ id: MISE_EN_AVANT_COLUMN_ID, value: ["1"] }]
-          : []),
-        ...(view.livraisonOfferte
-          ? [{ id: LIVRAISON_OFFERTE_COLUMN_ID, value: ["1"] }]
-          : []),
-        ...(view.stock !== null
-          ? [{ id: STOCK_COLUMN_ID, value: [view.stock] }]
-          : []),
-      ],
-      globalFilter: queryDraft,
-      rowSelection,
-    },
+    ...tableOptions,
+    state: { ...tableOptions.state, rowSelection },
     onRowSelectionChange: setRowSelection,
-    onSortingChange,
-    onPaginationChange,
-    onColumnFiltersChange,
-    onGlobalFilterChange: onQueryChange,
-    manualPagination: true,
-    manualSorting: true,
-    manualFiltering: true,
     initialState: { columnVisibility: COLONNES_CACHEES },
     getRowId: (produit) => produit.id,
   })
-
-  const hasActiveCriteria =
-    view.q.trim().length > 0 ||
-    view.structure !== null ||
-    view.misEnAvant ||
-    view.livraisonOfferte ||
-    view.stock !== null
 
   const structureOptions: DataTableFacetedFilterOption[] = structures.map(
     (structure) => ({ value: structure.id, label: structure.chemin })
@@ -629,6 +587,7 @@ export function ProduitsTable({
 
       <DataTableToolbar
         table={table}
+        onReset={reset}
         searchLabel="Rechercher un Produit par nom, marque, slug ou SKU"
         searchPlaceholder="Rechercher un Produit…"
         resultCount={page.totalCount}
