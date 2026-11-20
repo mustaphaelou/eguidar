@@ -375,7 +375,7 @@ describe("l'adaptateur Catalogue unitaire", () => {
     ).toBe(true)
   })
 
-  it("déclare et exécute le changement de stock : réindexation puis invalidation", async () => {
+  it("déclare et exécute le changement de stock : réindexation, invalidation puis purge", async () => {
     const { appels, effets } = portsEnregistreurs()
     const lecture = lecturesEnregistreuses()
     const journal = creerJournalEffetsMemoire()
@@ -388,6 +388,7 @@ describe("l'adaptateur Catalogue unitaire", () => {
     expect(evenementsDuPlan(plan)).toEqual([
       "reindexation",
       "invalidation-cache",
+      "purge-catalogue",
     ])
 
     await executer(plan, effets, lecture.lectures, journal)
@@ -395,8 +396,9 @@ describe("l'adaptateur Catalogue unitaire", () => {
     expect(appels).toEqual([
       { port: "reindexation", arguments: [[INDEXABLE]] },
       { port: "invalidation-cache", arguments: [EVENEMENT] },
+      { port: "purge-catalogue", arguments: [EVENEMENT] },
     ])
-    expect(journal.mesures).toHaveLength(2)
+    expect(journal.mesures).toHaveLength(3)
     expect(
       journal.mesures.every((mesure) => mesure.resultat === "succes")
     ).toBe(true)
@@ -509,6 +511,11 @@ describe("l'adaptateur Catalogue unitaire", () => {
       erreur: "port Catalogue manquant : reindexProducts",
     })
     expect(journal.mesures[1]).toMatchObject({ resultat: "succes" })
+    expect(journal.mesures[2]).toMatchObject({
+      effet: "purge-catalogue",
+      resultat: "echec",
+      erreur: "port Catalogue manquant : purgeCatalogue",
+    })
   })
 
   it("signale un événement Catalogue introuvable pour le Produit nommé", async () => {

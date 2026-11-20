@@ -22,6 +22,10 @@ import {
 } from "@/lib/use-cases/devis"
 import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
 import {
+  InvalidOrderTransitionError,
+  OutOfStockError,
+} from "@/lib/use-cases/commande"
+import {
   avecSurcharges,
   messageDeValidation,
 } from "@/lib/use-cases/mutation-squelette"
@@ -34,6 +38,12 @@ import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = EffetsCommande
 
+export {
+  InvalidOrderTransitionError,
+  OutOfStockError,
+  type OutOfStockItem,
+} from "@/lib/use-cases/commande"
+
 export const defaultOrderEffects: OrderEffects = {
   sendOrderPlacedEmail,
   sendOrderStatusEmail,
@@ -44,13 +54,6 @@ export interface CheckoutInput {
   address: string
   phone: string
   totalAffiche: number
-}
-
-export interface OutOfStockItem {
-  productName: string
-  variantName: string
-  requested: number
-  available: number
 }
 
 export interface OrderItemDetail {
@@ -122,22 +125,6 @@ export class EmptyCartError extends UserFacingError {
   }
 }
 
-export class OutOfStockError extends UserFacingError {
-  items: OutOfStockItem[]
-
-  constructor(items: OutOfStockItem[]) {
-    const details = items
-      .map(
-        (item) =>
-          `« ${item.productName} ${item.variantName} » : ${item.requested} demandé(s), ${item.available} disponible(s)`
-      )
-      .join(" ; ")
-    super(`Stock insuffisant : ${details}`)
-    this.name = "OutOfStockError"
-    this.items = items
-  }
-}
-
 export class DevisPériméError extends UserFacingError {
   constructor() {
     super(
@@ -158,13 +145,6 @@ export class UserNotFoundError extends Error {
   constructor() {
     super("Utilisateur introuvable")
     this.name = "UserNotFoundError"
-  }
-}
-
-export class InvalidOrderTransitionError extends UserFacingError {
-  constructor(fromStatus: OrderStatus, nextStatus: OrderStatus) {
-    super(`Transition invalide : ${fromStatus} → ${nextStatus}`)
-    this.name = "InvalidOrderTransitionError"
   }
 }
 

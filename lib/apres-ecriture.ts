@@ -587,15 +587,19 @@ const produitSupprimeLot: DeclarationPour<"produit.supprime.lot"> = (f) => {
 
 const varianteStockChangee: DeclarationPour<"variante.stock.changee"> = (f) => {
   const produitId = String(f.produitId)
+  const slug = String(f.slug)
+  const categoryId = f.categoryId ?? null
   const identite: IdentiteProduitCatalogue = {
     id: produitId,
-    slug: String(f.slug ?? ""),
-    categoryId: f.categoryId ?? null,
+    slug,
+    categoryId,
   }
   return {
     faits: [
       fait("variante.stock.changee", "produit", produitId, {
         produitId,
+        slug,
+        categoryId,
       }),
     ],
     consequences: [
@@ -614,6 +618,17 @@ const varianteStockChangee: DeclarationPour<"variante.stock.changee"> = (f) => {
         { type: "produit", id: produitId },
         `invalidation du cache pour ${produitId}`,
         {
+          durable: false,
+          reparation: "TTL",
+          payload: { produit: identite },
+        }
+      ),
+      consequence(
+        "purge-catalogue",
+        { type: "produit", id: produitId },
+        `purge du bord après changement de stock ${produitId}`,
+        {
+          action: "purge.catalogue",
           durable: false,
           reparation: "TTL",
           payload: { produit: identite },
@@ -932,8 +947,8 @@ export type FaitsProduitSupprimeLot = {
 
 export type FaitsVarianteStockChangee = {
   produitId: string | number
-  slug?: string
-  categoryId?: string | null
+  slug: string
+  categoryId: string | null
 }
 
 export type FaitsStructureCreee = {
@@ -1090,6 +1105,11 @@ export const FAITS_POUR_REGLES: Partial<
     produitId: "produit-modele",
     slug: "produit-modele",
     imagesRetirees: ["https://cdn.example.test/modele.jpg"],
+  },
+  "variante.stock.changee": {
+    produitId: "variante-modele",
+    slug: "variante-modele",
+    categoryId: null,
   },
   "structure.modifiee": {
     categorieId: "categorie-modele",

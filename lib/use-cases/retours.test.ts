@@ -12,6 +12,7 @@ import {
 
 import { prisma } from "@/lib/db"
 import type { ReturnReason } from "@/lib/generated/prisma/client"
+import type { EffetsStock } from "@/lib/use-cases/commande"
 import {
   InvalidOrderTransitionError,
   type OrderEffects,
@@ -37,6 +38,7 @@ const VARIANT_SKU = `RET-${runId}-A1`
 
 let userId: string
 let acteurId: string
+let produitId: string
 let variantId: string
 let categorieId: string
 
@@ -249,6 +251,7 @@ beforeAll(async () => {
     },
     include: { variants: true },
   })
+  produitId = produit.id
   variantId = produit.variants[0].id
 })
 
@@ -259,6 +262,9 @@ beforeEach(async () => {
   await prisma.return.deleteMany({ where: { order: { user: { email } } } })
   await prisma.orderItem.deleteMany({ where: { order: { user: { email } } } })
   await prisma.order.deleteMany({ where: { user: { email } } })
+  await prisma.automationEvent.deleteMany({
+    where: { type: "variante.stock.changee", entityId: produitId },
+  })
   await prisma.productVariant.update({
     where: { id: variantId },
     data: { stock: 10 },
@@ -272,6 +278,7 @@ afterAll(async () => {
   await prisma.return.deleteMany({ where: { order: { user: { email } } } })
   await prisma.orderItem.deleteMany({ where: { order: { user: { email } } } })
   await prisma.order.deleteMany({ where: { user: { email } } })
+  await prisma.automationEvent.deleteMany({ where: { entityId: produitId } })
   await prisma.user.delete({ where: { id: acteurId } })
   await prisma.user.delete({ where: { id: userId } })
   await prisma.product.deleteMany({ where: { categoryId: categorieId } })
@@ -1175,7 +1182,7 @@ describe("recevoir un Retour", () => {
     expect(variante.stock).toBe(12)
   })
 
-  it("n'écrit aucun Événement et n'exécute aucun effet pour une réception partielle", async () => {
+  it("déclare et exécute le stock d'une réception partielle sans Événement de Commande", async () => {
     const commande = await creerCommande({ quantites: [2] })
     const article = commande.items[0]
     const retour = await declarerRetour(
@@ -1187,6 +1194,12 @@ describe("recevoir un Retour", () => {
     const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
       async () => {}
     )
+    const reindexProducts = vi.fn<EffetsStock["reindexProducts"]>(
+      async () => {}
+    )
+    const revalidateCatalog = vi.fn<EffetsStock["revalidateCatalog"]>()
+    const purgeCatalogue = vi.fn<EffetsStock["purgeCatalogue"]>()
+
     const recu = await recevoirRetour(
       reception(retour, [
         {
@@ -1198,6 +1211,9 @@ describe("recevoir un Retour", () => {
       {
         sendOrderPlacedEmail,
         sendOrderStatusEmail,
+        reindexProducts,
+        revalidateCatalog,
+        purgeCatalogue,
       }
     )
 
@@ -1209,6 +1225,21 @@ describe("recevoir un Retour", () => {
         where: { type: "commande.statut.changee", entityId: commande.id },
       })
     ).toBe(0)
+
+    const faits = await prisma.automationEvent.findMany({
+      where: { type: "variante.stock.changee", entityId: produitId },
+    })
+    expect(faits).toHaveLength(1)
+    expect(faits[0]!.payload).toEqual({
+      produitId,
+      slug: `retours-produit-${runId}`,
+      categoryId: categorieId,
+    })
+    expect(reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ id: produitId, totalStock: 11 }),
+    ])
+    expect(revalidateCatalog).toHaveBeenCalledOnce()
+    expect(purgeCatalogue).toHaveBeenCalledOnce()
     expect((await stockerLaCommande(commande)).status).toBe("delivered")
   })
 

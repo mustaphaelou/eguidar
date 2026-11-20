@@ -278,7 +278,11 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
     const evenements = await evenementsDe(produitId)
     expect(evenements).toHaveLength(1)
     expect(evenements[0]!.type).toBe("variante.stock.changee")
-    expect(evenements[0]!.payload).toEqual({ produitId })
+    expect(evenements[0]!.payload).toEqual({
+      produitId,
+      slug: `${PREFIXE}produit`,
+      categoryId,
+    })
   })
 
   it("les mutations de Structure écrivent leur événement", async () => {

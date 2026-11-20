@@ -232,6 +232,20 @@ qu'elle fut écrite.
   l'adaptateur de leur entité (`livraison.ts`, `catalogue.ts`), et non plus par un
   `planDeMaintenance` partagé. L'ancien texte n'est pas réécrit : il reste l'état de #874.
 
+## Amendement — le Plan complet du genre du stock (2026-11-19, #1105)
+
+La liste du corps nomme `variante.stock.changee` parmi les genres d'écriture sans détailler son Plan. Le genre porte désormais **trois conséquences, dans cet ordre fixe** :
+
+1. la réindexation, durable, action `index.produit` (`indexation-stock`) ;
+2. l'invalidation du cache, non durable, réparation `TTL` ;
+3. la purge du bord, non durable, réparation `TTL`, action `purge.catalogue`.
+
+La troisième conséquence existait déjà dans les genres de Commande, où elle servait des écritures qui ne déplacent pas le stock. Elle rejoint le genre qui nomme le fait : un stock qui revient doit rendre le **Produit** visible dans la **Recherche**, dans le cache du **Catalogue** et au bord, quel que soit le chemin qui a déplacé le stock. La garder sur les genres de Commande ferait dépendre la fraîcheur du Catalogue de la branche de réception — une réception partielle remettrait le stock sans rien déclarer. Le passage par la tranche `Commande` (`écrireLeStock` puis `exécuterStock`) rend la déclaration inévitable : elle dérive des **Variantes** lues, une déclaration par **Produit** distinct, avec `produitId`, `slug` et `categoryId` lus dans la transaction.
+
+La purge reste non durable et sans Règle par défaut : `reglesParDefaut` écarte les conséquences non durables, donc le genre du stock ne gagne aucune Règle d'automatisation et le travailleur ne voit rien de nouveau. La charge du **Fait** s'étend de `produitId` à `slug` et `categoryId`, tous deux lus avec le **Produit** : le document d'index n'a plus à supplier un `slug` vide.
+
+Les conséquences des genres de Commande et la suppression de l'invalidation no-op sont enregistrées par l'amendement suivant (#1123, issue #1107).
+
 ## Amendement — les deux genres de Commande ne déclarent que l'E-mail de commande (2026-11-19)
 
 `commande.creee` et `commande.statut.changee` déclarent chacun un seul **Fait** et une seule

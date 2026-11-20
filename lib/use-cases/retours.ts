@@ -22,12 +22,20 @@ import {
 import { peutTransitionner } from "@/lib/statut-de-commande"
 import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
 import {
+  écrireLeStock,
+  exécuterStock,
+  InvalidOrderTransitionError,
+  reapprovisionner,
+  verrouillerCommande,
+  type EffetsStock,
+  type MouvementDeStock,
+} from "@/lib/use-cases/commande"
+import {
   avecSurcharges,
   messageDeValidation,
 } from "@/lib/use-cases/mutation-squelette"
 import {
   defaultOrderEffects,
-  InvalidOrderTransitionError,
   toOrderEmailSnapshot,
   type OrderEffects,
 } from "@/lib/use-cases/orders"
@@ -325,10 +333,9 @@ export async function declarerRetour(
 
   try {
     return await prisma.$transaction(async (tx) => {
-      const verrou = await tx.$queryRaw<{ id: string }[]>`
-        SELECT id FROM "Order" WHERE id = ${declaration.orderId} FOR UPDATE
-      `
-      if (verrou.length === 0) throw new CommandeDuRetourIntrouvableError()
+      if (!(await verrouillerCommande(tx, declaration.orderId))) {
+        throw new CommandeDuRetourIntrouvableError()
+      }
 
       const commande = await tx.order.findUniqueOrThrow({
         where: { id: declaration.orderId },
@@ -410,11 +417,14 @@ export async function refuserRetour(input: RefusDeRetour): Promise<RetourCree> {
   const refus = parseRefus(input)
 
   return await prisma.$transaction(async (tx) => {
-    const existant = await tx.return.findUnique({
+    const cible = await tx.return.findUnique({
       where: { id: refus.returnId },
-      select: { id: true },
+      select: { orderId: true },
     })
-    if (!existant) throw new RetourIntrouvableError()
+    if (!cible) throw new RetourIntrouvableError()
+    if (!(await verrouillerCommande(tx, cible.orderId))) {
+      throw new RetourIntrouvableError()
+    }
 
     const refusee = await tx.return.updateMany({
       where: { id: refus.returnId, status: "requested" },
@@ -436,22 +446,21 @@ export async function refuserRetour(input: RefusDeRetour): Promise<RetourCree> {
 
 export async function recevoirRetour(
   input: ReceptionDeRetour,
-  overrides?: Partial<OrderEffects>
+  surcharges?: Partial<OrderEffects & EffetsStock>
 ): Promise<RetourRecu> {
   const reception = parseReception(input)
-  const effects = avecSurcharges(defaultOrderEffects, overrides)
+  const effects = avecSurcharges(defaultOrderEffects, surcharges)
 
-  const { recu, plan } = await prisma.$transaction(async (tx) => {
+  const { recu, plan, ecriture } = await prisma.$transaction(async (tx) => {
     const cible = await tx.return.findUnique({
       where: { id: reception.returnId },
       select: { orderId: true },
     })
     if (!cible) throw new RetourIntrouvableError()
 
-    const verrou = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "Order" WHERE id = ${cible.orderId} FOR UPDATE
-    `
-    if (verrou.length === 0) throw new RetourIntrouvableError()
+    if (!(await verrouillerCommande(tx, cible.orderId))) {
+      throw new RetourIntrouvableError()
+    }
 
     const retour = await tx.return.findUniqueOrThrow({
       where: { id: reception.returnId },
@@ -515,6 +524,7 @@ export async function recevoirRetour(
     })
     if (recue.count === 0) throw new ReceptionDeRetourImpossibleError()
 
+    const mouvements: MouvementDeStock[] = []
     for (const ligne of lignesARecevoir) {
       await tx.returnLine.updateMany({
         where: { returnId: retour.id, orderItemId: ligne.orderItemId },
@@ -528,11 +538,11 @@ export async function recevoirRetour(
       }
       const article = articles.get(ligne.orderItemId)
       if (!article?.variantId) continue
-      await tx.productVariant.updateMany({
-        where: { id: article.variantId },
-        data: { stock: { increment: ligne.receivedQuantity } },
-      })
+      mouvements.push(
+        reapprovisionner(article.variantId, ligne.receivedQuantity)
+      )
     }
+    const ecriture = await écrireLeStock(tx, mouvements)
 
     const cumuls = await tx.returnLine.groupBy({
       by: ["orderItemId"],
@@ -596,9 +606,11 @@ export async function recevoirRetour(
         commandeClose: planDeCloture !== null,
       },
       plan: planDeCloture,
+      ecriture,
     }
   })
 
+  await exécuterStock(ecriture, surcharges ?? {})
   if (plan) await executerCommande(plan, effects)
   return recu
 }
