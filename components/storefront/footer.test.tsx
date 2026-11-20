@@ -7,7 +7,11 @@ import { StorefrontFooter } from "./footer"
 
 const structures = [
   { name: "Smartphones", slug: "smartphones" },
+  { name: "Ordinateurs & Tablettes", slug: "ordinateurs-tablettes" },
+  { name: "Audio & Hi-Fi", slug: "audio-hifi" },
+  { name: "TV & Home Cinema", slug: "tv-home-cinema" },
   { name: "Gaming", slug: "gaming" },
+  { name: "Accessoires", slug: "accessoires" },
 ]
 
 async function rendreLePied(
@@ -16,6 +20,12 @@ async function rendreLePied(
   const flux = await renderToReadableStream(
     <StorefrontFooter structures={structuresDuCatalogue} />
   )
+  await flux.allReady
+  return new Response(flux).text()
+}
+
+async function rendreLePiedSansProp(): Promise<string> {
+  const flux = await renderToReadableStream(<StorefrontFooter />)
   await flux.allReady
   return new Response(flux).text()
 }
@@ -65,7 +75,18 @@ describe("StorefrontFooter — les pages de la boutique", () => {
       expect(section.match(/<h3[ >]/g)).toHaveLength(1)
     }
     for (const titre of ["La boutique", "Mon compte", "Aide", "La maison"]) {
-      expect(html).toContain(`<h3 class="inline">${titre}</h3>`)
+      expect(html).toMatch(new RegExp(`<h3[^>]*>${titre}</h3>`))
+    }
+  })
+
+  it("donne à chaque section un vrai titre et un chevron signalé", async () => {
+    const html = await rendreLePied()
+
+    const chevrons =
+      html.match(/<[a-z]+[^>]*data-slot="chevron-pied-de-page"[^>]*>/g) ?? []
+    expect(chevrons).toHaveLength(4)
+    for (const chevron of chevrons) {
+      expect(chevron).toContain('aria-hidden="true"')
     }
   })
 
@@ -131,7 +152,7 @@ describe("StorefrontFooter — les pages de la boutique", () => {
     expect(positions).toEqual([...positions].sort((a, b) => a - b))
 
     for (const structure of structures) {
-      expect(html).toContain(structure.name)
+      expect(html).toContain(structure.name.replace(/&/g, "&amp;"))
     }
   })
 
@@ -148,50 +169,19 @@ describe("StorefrontFooter — les pages de la boutique", () => {
     ).toHaveLength(3)
   })
 
-  it("donne au Pied de page la recette du Bandeau, sans l'espacement du corps", async () => {
-    const html = await rendreLePied()
-    const recette = "text-[12px] leading-[1.3334] tracking-[-0.01em]"
+  it("se rend sans prop et ne montre alors aucun catalogue", async () => {
+    const html = await rendreLePiedSansProp()
 
-    expect(html.split(recette)).toHaveLength(11)
-    expect(html).not.toContain("text-xs")
-    expect(html).not.toContain("tracking-[-0.022em]")
-    expect(html.match(/font-semibold/g)).toHaveLength(4)
-  })
-
-  it("réserve l'encre solide aux liens de l'annuaire", async () => {
-    const html = await rendreLePied()
-    const liens = [...html.matchAll(/<a [^>]*class="([^"]+)"/g)].map(
-      (correspondance) => correspondance[1]!
-    )
-
-    expect(liens).toHaveLength(14)
+    expect(html).not.toContain('data-section="la-boutique"')
+    expect(html).not.toContain("La boutique")
+    expect(html).not.toContain("Tous les produits")
+    expect(html).not.toContain('href="/produits"')
+    expect(html).not.toContain('href="/categorie/')
     expect(
-      liens.filter((classes) => classes.includes("text-encre-annuaire"))
-    ).toHaveLength(10)
-    expect(html).not.toContain("text-link")
-    expect(html.match(/(?<!:)text-muted-foreground/g)).toHaveLength(2)
-    expect(html.match(/(?<!:)text-foreground/g)).toHaveLength(4)
-    expect(html).toContain("border-t border-hairline bg-muted")
-    expect(html.match(/border-hairline/g)).toHaveLength(2)
-    expect(html.match(/bg-hairline/g)).toHaveLength(1)
-    expect(html).not.toContain("border-border")
-    expect(html).not.toContain("bg-border")
-  })
-
-  it("fait répondre chaque lien au doigt et au focus", async () => {
-    const html = await rendreLePied()
-    const liens = [...html.matchAll(/<a [^>]*class="([^"]+)"/g)].map(
-      (correspondance) => correspondance[1]!
-    )
-
-    for (const classes of liens) {
-      expect(classes).toContain("min-h-7")
-      expect(classes).toContain("hover:underline")
-      expect(classes).toContain("hover:text-foreground")
-      expect(classes).toContain("active:opacity-70")
-      expect(classes).not.toContain("px-")
-      expect(classes).not.toContain("active:scale")
-      expect(classes).not.toContain("outline-none")
-    }
+      html.split('data-slot="section-pied-de-page"').slice(1)
+    ).toHaveLength(3)
+    expect(html).toContain("Mon compte")
+    expect(html).toContain("Aide")
+    expect(html).toContain("La maison")
   })
 })

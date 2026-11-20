@@ -234,7 +234,7 @@ test.describe("24. les filets de la bande d'assurance du Pied de page", () => {
 })
 
 test.describe("25. l'encre de l'annuaire du Pied de page", () => {
-  test("25. l'encre des liens d'annuaire atteint 7:1 sur la surface du Pied", async ({
+  test("25. l'encre des liens d'annuaire atteint 9:1 sur la surface du Pied", async ({
     page,
     serveur,
   }) => {
@@ -250,6 +250,144 @@ test.describe("25. l'encre de l'annuaire du Pied de page", () => {
     expect(
       ratio,
       `l'encre d'annuaire ne donne que ${ratio.toFixed(2)}:1 sur le Pied`
-    ).toBeGreaterThanOrEqual(7)
+    ).toBeGreaterThanOrEqual(9)
+  })
+})
+
+test.describe("26. la typographie et les états de l'annuaire du Pied de page", () => {
+  test("26a. le lien et le titre partagent la même recette", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const section = page.locator('[data-slot="section-pied-de-page"]').first()
+    const lien = section.getByRole("link", {
+      name: "Tous les produits",
+      exact: true,
+    })
+    const titre = section.locator("h3").first()
+    await expect(lien).toBeVisible()
+    await expect(titre).toBeVisible()
+
+    const mesurer = (element: Locator) =>
+      element.evaluate((noeud) => {
+        const style = getComputedStyle(noeud)
+        return {
+          taille: parseFloat(style.fontSize),
+          interligne: parseFloat(style.lineHeight),
+          interlettre: parseFloat(style.letterSpacing),
+          graisse: style.fontWeight,
+        }
+      })
+
+    const mesureDuLien = await mesurer(lien)
+    const mesureDuTitre = await mesurer(titre)
+    for (const mesure of [mesureDuLien, mesureDuTitre]) {
+      expect(mesure.taille).toBe(12)
+      expect(mesure.interligne).toBeCloseTo(16, 0)
+      expect(mesure.interlettre).toBeCloseTo(-0.12, 1)
+    }
+    expect(mesureDuLien.graisse).toBe("400")
+    expect(mesureDuTitre.graisse).toBe("600")
+
+    const liste = await section
+      .locator("summary")
+      .evaluate((noeud) => getComputedStyle(noeud).listStyleType)
+    expect(liste).toBe("none")
+    expect(
+      await titre.evaluate((noeud) => getComputedStyle(noeud).display)
+    ).toBe("block")
+  })
+
+  test("26b. garde des cibles hautes et des états visibles", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const lien = page
+      .locator('[data-slot="section-pied-de-page"]')
+      .first()
+      .getByRole("link", { name: "Tous les produits", exact: true })
+    await expect(lien).toBeVisible()
+
+    const boite = await lien.boundingBox()
+    expect(boite, "le lien d'annuaire n'a pas de boîte").not.toBeNull()
+    expect(
+      boite!.height,
+      `la cible du lien d'annuaire est trop basse (${boite!.height} px)`
+    ).toBeGreaterThanOrEqual(28)
+
+    const etatDuLien = () =>
+      lien.evaluate((noeud) => {
+        const style = getComputedStyle(noeud)
+        return {
+          paddingLeft: style.paddingLeft,
+          opacity: style.opacity,
+          transform: style.transform,
+          decoration: style.textDecorationLine,
+        }
+      })
+
+    const auRepos = await etatDuLien()
+    expect(auRepos.paddingLeft).toBe("0px")
+    expect(auRepos.opacity).toBe("1")
+    expect(auRepos.transform).toBe("none")
+    expect(auRepos.decoration).toBe("none")
+
+    const contrasteAuRepos = await rapportDeContraste(lien)
+    await lien.hover()
+    const auSurvol = await etatDuLien()
+    expect(auSurvol.decoration).toContain("underline")
+    expect(
+      await rapportDeContraste(lien),
+      "le survol doit assombrir le lien d'annuaire"
+    ).toBeGreaterThan(contrasteAuRepos)
+
+    await page.mouse.down()
+    const enAppui = await etatDuLien()
+    await page.mouse.up()
+    expect(parseFloat(enAppui.opacity)).toBeCloseTo(0.7, 1)
+    expect(enAppui.transform).toBe("none")
+  })
+})
+
+test.describe("27. les filets et le chevron des disclosures du Pied de page", () => {
+  test("27a. trace un filet par ligne de disclosure sur téléphone", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const sections = page.locator('[data-slot="section-pied-de-page"]')
+    await expect(sections).toHaveCount(4)
+    const filets = await sections.evaluateAll((elements) =>
+      elements.map((element) =>
+        parseFloat(getComputedStyle(element).borderBottomWidth)
+      )
+    )
+    expect(filets).toHaveLength(4)
+    for (const filet of filets) {
+      expect(
+        filet,
+        `un filet de disclosure mesure ${filet} px`
+      ).toBeGreaterThan(0)
+    }
+  })
+
+  test("27b. ne transitionne pas le chevron sous mouvement réduit", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const chevrons = page.locator('[data-slot="chevron-pied-de-page"]')
+    await expect(chevrons).toHaveCount(4)
+    await expect(chevrons.first()).toBeVisible()
+    const durees = await chevrons.evaluateAll((elements) =>
+      elements.map((element) => getComputedStyle(element).transitionDuration)
+    )
+    expect(durees).toEqual(["0s", "0s", "0s", "0s"])
   })
 })
