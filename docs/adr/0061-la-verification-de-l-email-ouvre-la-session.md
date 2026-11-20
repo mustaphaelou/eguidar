@@ -67,3 +67,26 @@ n'ajoutait une preuve que la bibliothèque n'avait pas déjà.
 - **Un test de parcours tient l'invariant** : la réponse de la Vérification porte le jeton de
   Session, et le parcours serveur le prouve à chaque exécution — le refus avant la Vérification, et
   le Compte client déjà vérifié qui échange un code jusqu'à la Session.
+
+## Amendement — Le doublon d'Inscription promeut sans prouver l'adresse (#1082, #1077)
+
+Aucune phrase de la décision n'est réécrite. Le présent amendement étend l'invariant « L'échange du
+code est la seule preuve de l'adresse, et il ouvre la Session une fois » et l'invariant « Aucune
+Session n'existe avant la Vérification de l'e-mail ».
+
+Sur une adresse préinscrite par un tiers, un doublon d'Inscription atteint le callback
+`emailAndPassword.onExistingUserSignUp`, qui appelle `revokeUnprovenAccountAccess` quand la ligne
+est non vérifiée. La bibliothèque supprime les comptes liés et les sessions, puis écrit
+`emailVerified: true`. Cette promotion n'est pas une preuve de la boîte : aucun code n'a été échangé,
+aucun fournisseur n'a attesté l'adresse, et la ligne ne porte plus de compte `credential` ni de
+session. Elle ne rend donc pas le Compte client connectable par mot de passe et n'ouvre aucune
+Session.
+
+L'échange du code reste la seule preuve de l'adresse et le seul geste qui ouvre la Session dans ce
+parcours. Le propriétaire de la boîte prouve son adresse par cet échange, puis choisit son mot de
+passe par la Réinitialisation du mot de passe. La promotion écrite par le helper ne crée pas de
+second flux et ne modifie pas les autres invariants : un Compte client non vérifié ne peut pas se
+connecter, et le mot de passe choisi à l'Inscription authentifie la Connexion suivante. Aucun
+schéma, aucune dépendance et aucun terme du glossaire ne changent : la suite
+`lib/auth-inscription-dupliquee.test.ts` épingle le drapeau aux côtés de la suppression du secret
+et des sessions.

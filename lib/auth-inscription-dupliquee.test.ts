@@ -110,6 +110,10 @@ describe("Inscription sur une adresse déjà connue", () => {
 
     expect(await compteCredential(adresseVictime)).toBeUndefined()
     expect(await nombreDeSessions(adresseVictime)).toBe(0)
+    const apresDoublon = await prisma.user.findUniqueOrThrow({
+      where: { email: adresseVictime },
+    })
+    expect(apresDoublon.emailVerified).toBe(true)
 
     await auth.api.sendVerificationOTP({
       body: { email: adresseVictime, type: "email-verification" },
