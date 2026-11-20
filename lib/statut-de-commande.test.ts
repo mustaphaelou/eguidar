@@ -6,16 +6,31 @@ import {
   peutTransitionner,
   REGISTRE_STATUTS,
   STATUTS_VALIDES,
+  TRANSITIONS_ADMINISTRATION,
   transitionsDisponibles,
+  TRANSITIONS_TOUTES_VOIES,
 } from "@/lib/statut-de-commande"
 
 const STATUTS = Object.keys(REGISTRE_STATUTS) as OrderStatus[]
 
-const MATRICE_ATTENDUE: Record<OrderStatus, readonly OrderStatus[]> = {
+const PAIRES = STATUTS.flatMap((statut) =>
+  STATUTS.map((cible) => ({ statut, cible }))
+)
+
+const MATRICE_TOUTES_VOIES: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["shipped", "cancelled"],
   shipped: ["delivered", "returned"],
   delivered: ["returned"],
+  cancelled: [],
+  returned: [],
+}
+
+const MATRICE_ADMINISTRATION: Record<OrderStatus, readonly OrderStatus[]> = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["shipped", "cancelled"],
+  shipped: ["delivered"],
+  delivered: [],
   cancelled: [],
   returned: [],
 }
@@ -43,9 +58,15 @@ describe("peutTransitionner", () => {
     for (const statut of STATUTS) {
       for (const cible of STATUTS) {
         expect(peutTransitionner(statut, cible), `${statut} → ${cible}`).toBe(
-          MATRICE_ATTENDUE[statut].includes(cible)
+          MATRICE_TOUTES_VOIES[statut].includes(cible)
         )
       }
+    }
+  })
+
+  it("lets the reception reach Retournée through the wide table", () => {
+    for (const statut of ["shipped", "delivered"] as const) {
+      expect(peutTransitionner(statut, "returned"), statut).toBe(true)
     }
   })
 
@@ -69,13 +90,10 @@ describe("peutTransitionner", () => {
 })
 
 describe("transitionsDisponibles", () => {
-  it("returns exactly the targets peutTransitionner allows", () => {
+  it("returns exactly the Administration targets", () => {
     for (const statut of STATUTS) {
-      const attendues = STATUTS.filter((cible) =>
-        peutTransitionner(statut, cible)
-      )
       expect([...transitionsDisponibles(statut)].sort()).toEqual(
-        [...attendues].sort()
+        [...MATRICE_ADMINISTRATION[statut]].sort()
       )
     }
   })
@@ -92,6 +110,40 @@ describe("transitionsDisponibles", () => {
         expect(STATUTS_VALIDES).toContain(cible)
       }
     }
+  })
+})
+
+describe("les deux matrices de Transition de statut", () => {
+  it("couvre les trente-six paires de statuts", () => {
+    expect(PAIRES).toHaveLength(36)
+  })
+
+  it("sur les trente-six paires, la matrice Administration est incluse dans la matrice toutes voies et ne vise jamais Retournée", () => {
+    for (const { statut, cible } of PAIRES) {
+      if (!TRANSITIONS_ADMINISTRATION[statut].includes(cible)) continue
+      expect(
+        TRANSITIONS_TOUTES_VOIES[statut],
+        `${statut} → ${cible}`
+      ).toContain(cible)
+      expect(cible, `${statut} → ${cible}`).not.toBe("returned")
+    }
+  })
+
+  it("seule la matrice toutes voies offre Retournée comme cible", () => {
+    expect(
+      PAIRES.some(
+        ({ statut, cible }) =>
+          TRANSITIONS_TOUTES_VOIES[statut].includes(cible) &&
+          cible === "returned"
+      )
+    ).toBe(true)
+    expect(
+      PAIRES.some(
+        ({ statut, cible }) =>
+          TRANSITIONS_ADMINISTRATION[statut].includes(cible) &&
+          cible === "returned"
+      )
+    ).toBe(false)
   })
 })
 

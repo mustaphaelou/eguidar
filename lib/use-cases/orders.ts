@@ -1,18 +1,16 @@
 import { z } from "zod"
 
 import { enregistrerFaits } from "@/lib/automations/evenements"
-import type { CommandeListingParams } from "@/lib/commande-listing"
+import {
+  COMMANDE_LISTING_PAGE_SIZE_DEFAULT,
+  type CommandeListingParams,
+} from "@/lib/commande-listing"
 import { prisma } from "@/lib/db"
 import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
-import { peutTransitionner } from "@/lib/statut-de-commande"
-import { PAGE_SIZES } from "@/lib/table-config"
+import { transitionsDisponibles } from "@/lib/statut-de-commande"
 import { lirePanierClient } from "@/lib/panier"
-import {
-  invalidateCommande,
-  invalidateProduits,
-} from "@/lib/use-cases/cache-invalidation"
 import {
   deliveryAddressField,
   deliveryPhoneField,
@@ -23,12 +21,11 @@ import {
   selectionValidee,
 } from "@/lib/use-cases/devis"
 import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
-import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   avecSurcharges,
   messageDeValidation,
 } from "@/lib/use-cases/mutation-squelette"
-import { declarerApresEcriture, type ProduitTouche } from "@/lib/apres-ecriture"
+import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import {
   executer as executerCommande,
   type EffetsCommande,
@@ -40,8 +37,6 @@ export type OrderEffects = EffetsCommande
 export const defaultOrderEffects: OrderEffects = {
   sendOrderPlacedEmail,
   sendOrderStatusEmail,
-  invalidateCommande,
-  invalidateProduits,
 }
 
 export interface CheckoutInput {
@@ -314,26 +309,6 @@ async function réapprovisionnerArticles(
   }
 }
 
-export async function produitsTouches(
-  tx: Prisma.TransactionClient,
-  items: readonly { variantId: string | null }[]
-): Promise<ProduitTouche[]> {
-  const variantes = [
-    ...new Set(
-      items
-        .map((item) => item.variantId)
-        .filter((variantId): variantId is string => variantId !== null)
-    ),
-  ]
-  if (variantes.length === 0) return []
-
-  return tx.product.findMany({
-    where: { variants: { some: { id: { in: variantes } } } },
-    select: { id: true, slug: true, categoryId: true },
-    orderBy: { id: "asc" },
-  })
-}
-
 async function verrouillerPanierClient(
   tx: Prisma.TransactionClient,
   userId: string
@@ -384,7 +359,6 @@ export async function placeOrder(
     if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
 
     await reserverStock(tx, cart.lines)
-    const produitsDrainés = await produitsTouches(tx, cart.lines)
 
     const created = await tx.order.create({
       data: {
@@ -415,13 +389,12 @@ export async function placeOrder(
     const plan = declarerApresEcriture("commande.creee", {
       commandeId: created.id,
       snapshot: toOrderEmailSnapshot(created, user.email),
-      produitsDrainés,
     })
     await enregistrerFaits(tx, plan.faits)
     return { order: created, plan }
   })
 
-  await executerCommande(plan, effects, { structure: lireStructure })
+  await executerCommande(plan, effects)
   return order
 }
 
@@ -487,7 +460,7 @@ export async function updateOrderStatus(
     include: { items: true, user: { select: { email: true } } },
   })
   if (!existing) throw new OrderNotFoundError()
-  if (!peutTransitionner(existing.status, nextStatus)) {
+  if (!transitionsDisponibles(existing.status).includes(nextStatus)) {
     throw new InvalidOrderTransitionError(existing.status, nextStatus)
   }
 
@@ -497,7 +470,7 @@ export async function updateOrderStatus(
       include: { items: true },
     })
     if (!fresh) throw new OrderNotFoundError()
-    if (!peutTransitionner(fresh.status, nextStatus)) {
+    if (!transitionsDisponibles(fresh.status).includes(nextStatus)) {
       throw new InvalidOrderTransitionError(fresh.status, nextStatus)
     }
 
@@ -535,10 +508,8 @@ export async function updateOrderStatus(
       },
     })
 
-    let produitsRéapprovisionnés: ProduitTouche[] | null = null
     if (nextStatus === "cancelled") {
       await réapprovisionnerArticles(tx, fresh.items)
-      produitsRéapprovisionnés = await produitsTouches(tx, fresh.items)
     }
 
     const updated = await tx.order.findUniqueOrThrow({
@@ -549,13 +520,12 @@ export async function updateOrderStatus(
       commandeId: orderId,
       snapshot: toOrderEmailSnapshot(updated, existing.user.email),
       statut: nextStatus,
-      produitsRéapprovisionnés: produitsRéapprovisionnés ?? [],
     })
     await enregistrerFaits(tx, plan.faits)
     return { updated, plan }
   })
 
-  await executerCommande(plan, effects, { structure: lireStructure })
+  await executerCommande(plan, effects)
   return updated
 }
 
@@ -621,7 +591,7 @@ async function runListAdminOrders(
   const orderBy: Prisma.OrderOrderByWithRelationInput =
     params?.tri === "total" ? { totalPayable: sens } : { createdAt: sens }
   const page = params?.page ?? 1
-  const pageSize = params?.pageSize ?? PAGE_SIZES[0]
+  const pageSize = params?.pageSize ?? COMMANDE_LISTING_PAGE_SIZE_DEFAULT
 
   const [orders, totalCount] = await prisma.$transaction([
     prisma.order.findMany({

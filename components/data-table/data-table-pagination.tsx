@@ -9,7 +9,7 @@ import {
   ChevronRightIcon,
 } from "@hugeicons/core-free-icons"
 
-import { PAGE_SIZES } from "@/lib/table-config"
+import { PAGE_SIZES } from "@/lib/admin-listing"
 import { cn, getPageNumbers } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {

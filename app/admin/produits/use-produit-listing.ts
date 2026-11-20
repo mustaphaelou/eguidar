@@ -25,7 +25,7 @@ import {
   type ProduitStockFiltre,
   type ProduitTri,
 } from "@/lib/produit-listing"
-import { PAGE_SIZES } from "@/lib/table-config"
+import { PAGE_SIZES } from "@/lib/admin-listing"
 
 const SEARCH_DEBOUNCE_MS = 300
 

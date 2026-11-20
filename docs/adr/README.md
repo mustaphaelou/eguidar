@@ -15,6 +15,7 @@ Pour la carte qui situe ces décisions — les couches, les coutures, les lois �
 
 - **0036 n'a jamais été écrite.** Le numéro est sauté, pas perdu : aucune référence ne le cite.
 - **0039 est la porte JSON de l'Administration.** Le Bandeau, publié le même jour sous le même numéro, porte désormais **0051** ; son unique référence — l'amendement d'ADR-0037 — a suivi.
+- **0063 est le Moyen de connexion (#1072).** La spec #1086 appelait la décision du Pied de page « ADR-0063 », mais le numéro était déjà pris le même jour. La décision du Pied de page porte **0064** ; c'est ce numéro que citent son amendement d'ADR-0037 et l'index.
 
 ## Les décisions
 
@@ -97,8 +98,9 @@ qu'elle ne tient pas et l'ADR qui l'a décidé (ADR-0058).
 | --- | --- | --- |
 | [0008](0008-base-ui-hugeicons-not-radix-lucide.md) | Base UI and hugeicons instead of Radix and lucide in the Administration shell | |
 | [0032](0032-le-retrait-au-doigt-a-ses-ressorts.md) | Le retrait au doigt a ses ressorts, sa décision se prend au point projeté | |
-| [0037](0037-le-bandeau-na-plus-quune-entree-vers-le-compte.md) | Le Bandeau n'a plus qu'une entrée vers le Compte, et c'est l'Aperçu du Panier | |
+| [0037](0037-le-bandeau-na-plus-quune-entree-vers-le-compte.md) | Le Bandeau n'a plus qu'une entrée vers le Compte, et c'est l'Aperçu du Panier | amendé par 0064 |
 | [0051](0051-le-bandeau-ne-porte-plus-les-pages-de-la-boutique.md) | Le Bandeau ne porte plus les pages de la boutique ; le pied de page les porte seul | |
+| [0064](0064-le-pied-de-page-porte-le-catalogue.md) | Le Pied de page porte le Catalogue ; le Bandeau ne gagne ni page ni contrôle du Compte | |
 
 ### Données et schéma
 

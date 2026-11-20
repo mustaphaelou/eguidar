@@ -50,3 +50,9 @@ Une Commande Livrée portait trois choses dans un seul Statut de commande : la m
 - Une rétractation demandée plus de sept jours après `Order.deliveredAt` est persistée en `goodwill`.
 - Un refus part d'un Retour `requested` et le laisse en place ; il n'écrit que `status`, `refusalCode`, `refusalNote` et `updatedAt`.
 - Déclarer ou refuser un Retour n'écrit ni `ProductVariant.stock`, ni `Order.status`, ni une ligne de `Payment` ou de `Refund`.
+
+## Amendement — `Retournée` n'est atteignable que depuis la réception (#1104, 2026-11-19)
+
+La phrase de la décision — « `Retournée` ne sera atteint que lorsque toutes les unités commandées auront été reçues, depuis la transaction de réception » — devient une propriété de la matrice de transitions, et non plus seulement une intention. La matrice est divisée en deux tables nommées : `TRANSITIONS_TOUTES_VOIES` garde toutes les voies et est la seule à nommer `Retournée` ; `TRANSITIONS_ADMINISTRATION` ne contient que les transitions offertes par les boutons d'Administration et ne nomme jamais `Retournée`. `transitionsDisponibles` lit la table Administration, et `updateOrderStatus` ne valide sa cible que contre cette table : un passage manuel à `Retournée` est refusé par le refus de transition invalide existant. La clôture de la réception continue de lire la table toutes voies, elle atteint donc toujours `Retournée` quand toutes les unités sont revenues.
+
+Une propriété sur les trente-six paires de Statuts vérifie que la table Administration est incluse dans la table toutes voies et qu'aucune de ses arêtes ne vise `Retournée`. Rien ne change pour les trois faits : le Retour reste le fait des marchandises, l'Encaissement celui de l'argent reçu et le Remboursement celui de l'argent rendu.
