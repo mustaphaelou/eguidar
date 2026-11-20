@@ -188,6 +188,8 @@ export function useListingTable<L extends AdminListing>({
   const intentRef = React.useRef<ListingView>(view)
   const queryDraftRef = React.useRef<string>(view.q)
   const lastPushedRef = React.useRef<string>(viewHref(toSchema(listing), view))
+  const supersededHrefsRef = React.useRef<Set<string>>(new Set())
+  const fromCommitRef = React.useRef(false)
   const searchTimerRef = React.useRef<number | null>(null)
   const clampGuardRef = React.useRef<string | null>(null)
 
@@ -202,7 +204,11 @@ export function useListingTable<L extends AdminListing>({
     (next: ListingView, fromSearch = false) => {
       if (!fromSearch) cancelPendingSearch()
       const href = viewHref(schemaRef.current, next)
+      if (fromCommitRef.current && lastPushedRef.current !== href) {
+        supersededHrefsRef.current.add(lastPushedRef.current)
+      }
       lastPushedRef.current = href
+      fromCommitRef.current = true
       intentRef.current = next
       queryDraftRef.current = next.q
       setView(next)
@@ -225,7 +231,11 @@ export function useListingTable<L extends AdminListing>({
       if (clampGuardRef.current === key) return
       clampGuardRef.current = key
       cancelPendingSearch()
+      if (fromCommitRef.current && lastPushedRef.current !== href) {
+        supersededHrefsRef.current.add(lastPushedRef.current)
+      }
       lastPushedRef.current = href
+      fromCommitRef.current = true
       intentRef.current = incoming
       queryDraftRef.current = incoming.q
       setView(incoming)
@@ -236,8 +246,11 @@ export function useListingTable<L extends AdminListing>({
 
     clampGuardRef.current = null
     if (href === lastPushedRef.current) return
+    if (supersededHrefsRef.current.has(href)) return
     cancelPendingSearch()
+    supersededHrefsRef.current.clear()
     lastPushedRef.current = href
+    fromCommitRef.current = false
     intentRef.current = incoming
     queryDraftRef.current = incoming.q
     setView(incoming)
