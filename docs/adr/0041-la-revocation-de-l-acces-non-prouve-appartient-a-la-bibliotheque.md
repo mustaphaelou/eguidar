@@ -109,6 +109,19 @@ ne devient pas une preuve de boîte supplémentaire. Sans compte `credential` ni
 rentre que par l'échange du code ou par un fournisseur social qui atteste l'adresse. L'invariant
 « l'application ne réimplémente pas la révocation » s'étend à ce callback : aucun module du dépôt ne
 supprime les comptes `credential` ni les sessions d'un Compte client lors d'une promotion d'adresse.
+
+**L'invariant `emailVerified` est amendé explicitement.** La phrase du corps « `emailVerified`
+continue de vouloir dire « l'adresse est attestée » — par l'échange du code, ou par Facebook ou
+Google » se lit désormais avec une exception : sur une ligne préinscrite non vérifiée, le doublon
+d'Inscription appelle le helper de la bibliothèque, qui retire tout accès non prouvé puis écrit
+`emailVerified: true` sans échange de code ni attestation du fournisseur. Dans ce cas précis, le
+drapeau signifie « l'accès non prouvé a été retiré », pas « la boîte a été prouvée ». Il n'ouvre ni
+session ni accès par mot de passe, puisque la ligne ne porte plus de compte `credential` ni de
+session : elle ne rentre que par l'échange du code ou par un fournisseur qui atteste l'adresse.
+L'échange du code reste la seule preuve de l'adresse, et la Réinitialisation du mot de passe reste
+la voie délibérée pour choisir un secret après ce doublon. ADR-0061 porte le même amendement de son
+côté.
+
 Ni schéma, ni migration, ni dépendance, ni terme du glossaire ne changent. Les suites
 `auth-inscription-verification-connexion.test.ts` et `auth-inscription-dupliquee.test.ts` épinglent
 le parcours normal et les quatre issues du doublon ; la frontière

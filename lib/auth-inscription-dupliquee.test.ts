@@ -36,6 +36,10 @@ async function compteCredential(adresseEmail: string) {
   return client?.accounts.find((compte) => compte.providerId === "credential")
 }
 
+async function compteClient(adresseEmail: string) {
+  return prisma.user.findUniqueOrThrow({ where: { email: adresseEmail } })
+}
+
 async function nombreDeSessions(adresseEmail: string) {
   return prisma.session.count({ where: { user: { email: adresseEmail } } })
 }
@@ -92,9 +96,7 @@ describe("Inscription sur une adresse déjà connue", () => {
         name: "Préinscrit",
       },
     })
-    const preinscrit = await prisma.user.findUniqueOrThrow({
-      where: { email: adresseVictime },
-    })
+    const preinscrit = await compteClient(adresseVictime)
     expect(preinscrit.emailVerified).toBe(false)
     expect(await compteCredential(adresseVictime)).toBeTruthy()
     await poserSession(preinscrit.id)
@@ -110,6 +112,8 @@ describe("Inscription sur une adresse déjà connue", () => {
 
     expect(await compteCredential(adresseVictime)).toBeUndefined()
     expect(await nombreDeSessions(adresseVictime)).toBe(0)
+    const apresDoublon = await compteClient(adresseVictime)
+    expect(apresDoublon.emailVerified).toBe(true)
 
     await auth.api.sendVerificationOTP({
       body: { email: adresseVictime, type: "email-verification" },
