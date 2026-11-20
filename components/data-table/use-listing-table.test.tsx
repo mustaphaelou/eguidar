@@ -197,6 +197,46 @@ describe("useListingTable — séquences de commits", () => {
     expect(latest!.tableOptions.state.globalFilter).toBe("")
   })
 
+  it("ignore l'echo périmé d'un commit devancé par une navigation plus récente", () => {
+    renderCommandes({})
+    act(() =>
+      latest!.tableOptions.onColumnFiltersChange([
+        { id: "statut", value: ["pending"] },
+      ])
+    )
+    const obsoleteHref = pushedHrefs.at(-1)!
+    act(() =>
+      latest!.tableOptions.onPaginationChange({ pageIndex: 1, pageSize: 10 })
+    )
+    const dernierHref = pushedHrefs.at(-1)!
+    expect(obsoleteHref).not.toBe(dernierHref)
+    renderCommandes(parseCommandeListingParams(rawFromUrl(obsoleteHref)))
+    expect(pushedHrefs).toEqual([obsoleteHref, dernierHref])
+    expect(latest!.tableOptions.state.pagination.pageIndex).toBe(1)
+    expect(latest!.tableOptions.state.columnFilters).toEqual([
+      { id: "statut", value: ["pending"] },
+    ])
+  })
+
+  it("adopte une navigation externe après avoir ignoré un echo périmé", () => {
+    renderCommandes({})
+    act(() =>
+      latest!.tableOptions.onColumnFiltersChange([
+        { id: "statut", value: ["pending"] },
+      ])
+    )
+    const obsoleteHref = pushedHrefs.at(-1)!
+    act(() =>
+      latest!.tableOptions.onPaginationChange({ pageIndex: 1, pageSize: 10 })
+    )
+    renderCommandes(parseCommandeListingParams(rawFromUrl(obsoleteHref)))
+    expect(latest!.tableOptions.state.pagination.pageIndex).toBe(1)
+    renderCommandes({ q: "externe", page: 2 })
+    expect(latest!.tableOptions.state.globalFilter).toBe("externe")
+    expect(latest!.tableOptions.state.pagination.pageIndex).toBe(1)
+    expect(latest!.tableOptions.state.columnFilters).toEqual([])
+  })
+
   it("supprime un echo sans seconde navigation", () => {
     renderCommandes({ q: "alix" })
     act(() =>
@@ -341,6 +381,15 @@ describe("useListingTable — cadrage et navigation", () => {
     )
     expect(latest!.tableOptions.state.pagination.pageSize).toBe(20)
     expect(latest!.tableOptions.state.pagination.pageIndex).toBe(2)
+  })
+
+  it("replie un tri vide sur la colonne et le sens par défaut", () => {
+    renderCommandes({ page: 3, tri: "total", sens: "desc" })
+    act(() => latest!.tableOptions.onSortingChange([]))
+    expect(latest!.tableOptions.state.sorting).toEqual([
+      { id: "date", desc: false },
+    ])
+    expect(latest!.tableOptions.state.pagination.pageIndex).toBe(0)
   })
 
   it("gère les replis de tri et les updaters fonctionnels", () => {
