@@ -12,93 +12,121 @@ import { assurancePiedDePage, site } from "@/lib/site"
 import type { NavCategory } from "@/lib/use-cases/storefront"
 import { cn } from "@/lib/utils"
 
-type LienDePied = { href: string; libelle: string }
-type SectionDePied = {
-  id: string
-  titre: string
-  liens: readonly LienDePied[]
+interface LienDuPiedDePage {
+  readonly href: string
+  readonly label: string
 }
-type ColonneDePied = { id: string; sections: readonly SectionDePied[] }
+
+interface SectionDuPiedDePage {
+  readonly id: string
+  readonly titre: string
+  readonly liens: readonly LienDuPiedDePage[]
+}
+
+type ColonneDuPiedDePage = readonly SectionDuPiedDePage[]
+
+interface PiedDePage {
+  readonly colonnes: readonly ColonneDuPiedDePage[]
+  readonly mentions: {
+    readonly copyright: string
+    readonly liens: readonly LienDuPiedDePage[]
+  }
+}
 
 const RECETTE_PETIT_TEXTE = "text-[12px] leading-[1.3334] tracking-[-0.01em]"
 
 const RETOURS_DU_LIEN =
   "hover:text-foreground hover:underline active:opacity-70 motion-safe:transition-[color,opacity]"
 
-function colonnesDuPied(
-  structures: readonly NavCategory[]
-): readonly ColonneDePied[] {
-  return [
-    ...(structures.length > 0
-      ? [
-          {
-            id: "boutique",
-            sections: [
-              {
-                id: "la-boutique",
-                titre: "La boutique",
-                liens: [
-                  { href: "/produits", libelle: "Tous les produits" },
-                  ...structures.map((structure) => ({
-                    href: `/categorie/${structure.slug}`,
-                    libelle: structure.name,
-                  })),
-                ],
-              },
-            ],
-          },
-        ]
-      : []),
-    {
-      id: "compte",
-      sections: [
-        {
-          id: "mon-compte",
-          titre: "Mon compte",
-          liens: [
-            { href: "/commandes", libelle: "Mes commandes" },
-            { href: "/panier", libelle: "Mon panier" },
-            { href: "/profil", libelle: "Mon profil" },
-          ],
-        },
+function contenuDuPiedDePage(structures: readonly NavCategory[]): PiedDePage {
+  const catalogue: SectionDuPiedDePage = {
+    id: "la-boutique",
+    titre: "La boutique",
+    liens:
+      structures.length > 0
+        ? [
+            { href: "/produits", label: "Tous les produits" },
+            ...structures.map((structure) => ({
+              href: `/categorie/${structure.slug}`,
+              label: structure.name,
+            })),
+          ]
+        : [],
+  }
+
+  const compte: SectionDuPiedDePage = {
+    id: "mon-compte",
+    titre: "Mon compte",
+    liens: [
+      { href: "/commandes", label: "Mes commandes" },
+      { href: "/panier", label: "Mon panier" },
+      { href: "/profil", label: "Mon profil" },
+    ],
+  }
+
+  const aide: SectionDuPiedDePage = {
+    id: "aide",
+    titre: "Aide",
+    liens: [
+      { href: "/faq", label: "FAQ" },
+      { href: "/contact", label: "Contact" },
+    ],
+  }
+
+  const maison: SectionDuPiedDePage = {
+    id: "la-maison",
+    titre: "La maison",
+    liens: [
+      { href: "/a-propos", label: "À propos" },
+      { href: "/blog", label: "Blog" },
+    ],
+  }
+
+  const colonnes = [[catalogue], [compte], [aide, maison]]
+    .map((sections) => sections.filter((section) => section.liens.length > 0))
+    .filter((sections) => sections.length > 0)
+
+  return {
+    colonnes,
+    mentions: {
+      copyright: `© ${site.name} — Le code est sous`,
+      liens: [
+        { href: site.licenseUrl, label: "licence MIT" },
+        { href: "/conditions", label: "Conditions & livraison" },
+        { href: "/suppression-donnees", label: "Suppression des données" },
       ],
     },
-    {
-      id: "services",
-      sections: [
-        {
-          id: "aide",
-          titre: "Aide",
-          liens: [
-            { href: "/faq", libelle: "FAQ" },
-            { href: "/contact", libelle: "Contact" },
-          ],
-        },
-        {
-          id: "la-maison",
-          titre: "La maison",
-          liens: [
-            { href: "/a-propos", libelle: "À propos" },
-            { href: "/blog", libelle: "Blog" },
-          ],
-        },
-      ],
-    },
-  ]
+  }
 }
 
-const liensLegaux: readonly LienDePied[] = [
-  { href: "/conditions", libelle: "Conditions & livraison" },
-  { href: "/suppression-donnees", libelle: "Suppression des données" },
-]
-
-function SectionDuPied({ section }: { section: SectionDePied }) {
+function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
   return (
-    <details open data-slot="section-pied-de-page" data-section={section.id}>
+    <details
+      open
+      data-slot="section-pied-de-page"
+      data-section={section.id}
+      className="group border-b border-hairline md:border-b-0"
+    >
       <summary
-        className={`cursor-pointer py-1 font-semibold text-foreground ${RECETTE_PETIT_TEXTE}`}
+        className={`flex cursor-pointer list-none items-center justify-between gap-4 py-1 font-semibold text-foreground [&::-webkit-details-marker]:hidden ${RECETTE_PETIT_TEXTE}`}
       >
-        <h3 className="inline">{section.titre}</h3>
+        <h3 className={`font-semibold text-foreground ${RECETTE_PETIT_TEXTE}`}>
+          {section.titre}
+        </h3>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          className="size-4 shrink-0 text-muted-foreground group-open:rotate-180 motion-safe:transition-transform"
+          fill="none"
+        >
+          <path
+            d="m4 6 4 4 4-4"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </summary>
       <ul className={`mt-2 flex flex-col gap-1 ${RECETTE_PETIT_TEXTE}`}>
         {section.liens.map((lien) => (
@@ -107,7 +135,7 @@ function SectionDuPied({ section }: { section: SectionDePied }) {
               href={lien.href}
               className={`flex min-h-7 items-center text-encre-annuaire ${RETOURS_DU_LIEN}`}
             >
-              {lien.libelle}
+              {lien.label}
             </Link>
           </li>
         ))}
@@ -117,10 +145,13 @@ function SectionDuPied({ section }: { section: SectionDePied }) {
 }
 
 export function StorefrontFooter({
-  structures,
+  structures = [],
 }: {
-  structures: readonly NavCategory[]
+  structures?: readonly NavCategory[]
 }) {
+  const piedDePage = contenuDuPiedDePage(structures)
+  const [licence, ...documents] = piedDePage.mentions.liens
+
   return (
     <footer
       aria-labelledby="pied-de-page-titre"
@@ -134,10 +165,10 @@ export function StorefrontFooter({
           aria-label="Liens du pied de page"
           className="grid gap-8 sm:grid-cols-2 md:grid-cols-3"
         >
-          {colonnesDuPied(structures).map((colonne) => (
-            <div key={colonne.id} className="flex flex-col gap-6">
-              {colonne.sections.map((section) => (
-                <SectionDuPied key={section.id} section={section} />
+          {piedDePage.colonnes.map((colonne) => (
+            <div key={colonne[0]!.id} className="flex flex-col gap-6">
+              {colonne.map((section) => (
+                <SectionDuPiedDePage key={section.id} section={section} />
               ))}
             </div>
           ))}
@@ -189,18 +220,18 @@ export function StorefrontFooter({
           className={`mt-8 flex flex-wrap items-center gap-x-2 border-t border-hairline pt-6 text-muted-foreground ${RECETTE_PETIT_TEXTE}`}
         >
           <span>
-            © {site.name} — Le code est sous{" "}
+            {piedDePage.mentions.copyright}{" "}
             <a
-              href={site.licenseUrl}
+              href={licence!.href}
               target="_blank"
               rel="noreferrer"
               className={`inline-flex min-h-7 min-w-6 items-center ${RETOURS_DU_LIEN}`}
             >
-              licence MIT
+              {licence!.label}
             </a>
             .
           </span>
-          {liensLegaux.map((lien, index) => (
+          {documents.map((lien, index) => (
             <span key={lien.href} className="flex items-center gap-x-2">
               {index > 0 ? (
                 <span aria-hidden="true" className="h-2.5 w-px bg-hairline" />
@@ -209,7 +240,7 @@ export function StorefrontFooter({
                 href={lien.href}
                 className={`inline-flex min-h-7 min-w-6 items-center ${RETOURS_DU_LIEN}`}
               >
-                {lien.libelle}
+                {lien.label}
               </Link>
             </span>
           ))}

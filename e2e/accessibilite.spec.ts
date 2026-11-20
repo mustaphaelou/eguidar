@@ -234,7 +234,7 @@ test.describe("24. les filets de la bande d'assurance du Pied de page", () => {
 })
 
 test.describe("25. l'encre de l'annuaire du Pied de page", () => {
-  test("25. l'encre des liens d'annuaire atteint 7:1 sur la surface du Pied", async ({
+  test("25. l'encre des liens d'annuaire atteint 9:1 sur la surface du Pied", async ({
     page,
     serveur,
   }) => {
@@ -250,6 +250,6 @@ test.describe("25. l'encre de l'annuaire du Pied de page", () => {
     expect(
       ratio,
       `l'encre d'annuaire ne donne que ${ratio.toFixed(2)}:1 sur le Pied`
-    ).toBeGreaterThanOrEqual(7)
+    ).toBeGreaterThanOrEqual(9)
   })
 })
