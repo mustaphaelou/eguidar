@@ -85,6 +85,9 @@ ni sur le retrait du Logo, ni sur la règle de la destination unique.
   boutique ne franchit pas ; la décision ajoute pourtant une colonne, parce que les quatre sections
   sont des paires et qu'empiler deux titres dans une colonne faisait lire le tiers droit comme un
   bloc. Une personne doit accepter cet écart.
+- **Le lien téléphone reste dans la phrase.** Il n'a pas la cible de 28 px des liens d'annuaire :
+  l'exception que WCAG réserve aux liens au fil du texte le couvre, la règle de #1090 ne le couvre
+  pas. Ses états — survol, appui, transition — sont ceux de tous les liens du pied.
 - **Deux écarts de plus avec apple.com sont voulus** : quatre colonnes au lieu de cinq, et le
   conteneur partagé de 929 px de contenu (980 px moins deux fois `px-6`) au lieu des 980 px d'apple.com, que
   [`conteneur-boutique.ts`](../../lib/conteneur-boutique.ts) fixe pour toute la boutique. Le côté droit
