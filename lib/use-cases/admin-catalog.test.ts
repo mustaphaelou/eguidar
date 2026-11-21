@@ -1314,6 +1314,69 @@ describe("admin catalog mutations", () => {
     })
   })
 
+  it("la fixation manuelle déclare un Fait et réindexe le stock engagé, pas une copie d'avant transaction", async () => {
+    const produit = await createProduct(
+      makeInput({
+        slug: slug("stock-engage"),
+        variants: [
+          {
+            name: "Standard",
+            sku: `SKU-${runId}-engage-1`,
+            priceDelta: 0,
+            stock: 5,
+          },
+          {
+            name: "Premium",
+            sku: `SKU-${runId}-engage-2`,
+            priceDelta: 0,
+            stock: 5,
+          },
+        ],
+      }),
+      {
+        reindexProducts: async () => {},
+        revalidateCatalog: () => {},
+        purgeCatalogue: () => {},
+      }
+    )
+    const cible = produit.variants[0]!
+    const soeur = produit.variants[1]!
+    const reindexProducts = vi.fn(async () => {})
+    const reelle = prisma.$transaction.bind(prisma)
+    const espion = vi.spyOn(prisma, "$transaction").mockImplementation(((
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>
+    ) =>
+      reelle(async (tx) => {
+        await tx.productVariant.update({
+          where: { id: soeur.id },
+          data: { stock: 8 },
+        })
+        return callback(tx)
+      })) as unknown as typeof prisma.$transaction)
+
+    try {
+      await updateVariantStock(cible.id, 2, { reindexProducts })
+    } finally {
+      espion.mockRestore()
+    }
+
+    expect(reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ id: produit.id, totalStock: 10 }),
+    ])
+    const faits = await prisma.automationEvent.findMany({
+      where: { entityId: produit.id, type: "variante.stock.changee" },
+    })
+    expect(faits).toHaveLength(1)
+    expect(faits[0]).toMatchObject({
+      entityType: "produit",
+      payload: {
+        produitId: produit.id,
+        slug: produit.slug,
+        categoryId: produit.categoryId,
+      },
+    })
+  })
+
   it("invalide le cache même quand la réindexation du stock échoue", async () => {
     const produit = await createProduct(
       makeInput({ slug: slug("stock-echec") }),
