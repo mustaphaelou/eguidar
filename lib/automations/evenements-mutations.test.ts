@@ -186,11 +186,9 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
       data: { userId, variantId, quantity: 1 },
     })
 
-    const commande = await placeOrder(
-      userId,
-      await entreeDeCommande(),
-      EFFETS_COMMANDE
-    )
+    const commande = await placeOrder(userId, await entreeDeCommande(), {
+      email: EFFETS_COMMANDE,
+    })
 
     const evenements = await evenementsDe(commande.id)
     expect(evenements).toHaveLength(1)
@@ -205,7 +203,7 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
 
   it("une Commande refusée ne laisse aucun événement", async () => {
     await expect(
-      placeOrder(userId, await entreeDeCommande(), EFFETS_COMMANDE)
+      placeOrder(userId, await entreeDeCommande(), { email: EFFETS_COMMANDE })
     ).rejects.toThrow()
     await expect(
       prisma.automationEvent.count({
@@ -221,12 +219,12 @@ describe("les mutations écrivent leur événement dans leur transaction", () =>
     await prisma.cartItem.create({
       data: { userId, variantId, quantity: 1 },
     })
-    const commande = await placeOrder(
-      userId,
-      await entreeDeCommande(),
-      EFFETS_COMMANDE
-    )
-    await updateOrderStatus(commande.id, "confirmed", userId, EFFETS_COMMANDE)
+    const commande = await placeOrder(userId, await entreeDeCommande(), {
+      email: EFFETS_COMMANDE,
+    })
+    await updateOrderStatus(commande.id, "confirmed", userId, {
+      email: EFFETS_COMMANDE,
+    })
 
     const evenements = await evenementsDe(commande.id)
     expect(evenements.map((evenement) => evenement.type)).toEqual([

@@ -23,6 +23,7 @@ import {
 import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
 import {
   écrireLeStock,
+  type EffetsStock,
   exécuterStock,
   InvalidOrderTransitionError,
   reapprovisionner,
@@ -41,6 +42,11 @@ import {
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = EffetsCommande
+
+type SurchargesCommande = {
+  email?: Partial<OrderEffects>
+  stock?: Partial<EffetsStock>
+}
 
 export {
   InvalidOrderTransitionError,
@@ -263,9 +269,9 @@ async function verrouillerPanierClient(
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
-  overrides?: Partial<OrderEffects>
+  surcharges?: SurchargesCommande
 ) {
-  const effects = avecSurcharges(defaultOrderEffects, overrides)
+  const effects = avecSurcharges(defaultOrderEffects, surcharges?.email)
   const data = parseCheckoutInput(input)
 
   const user = await prisma.user.findUnique({
@@ -326,7 +332,7 @@ export async function placeOrder(
     return { order: created, plan, ecriture }
   })
 
-  await exécuterStock(ecriture)
+  await exécuterStock(ecriture, surcharges?.stock ?? {})
   await executerCommande(plan, effects)
   return order
 }
@@ -384,9 +390,9 @@ export async function updateOrderStatus(
   orderId: string,
   nextStatus: OrderStatus,
   actorId: string,
-  overrides?: Partial<OrderEffects>
+  surcharges?: SurchargesCommande
 ) {
-  const effects = avecSurcharges(defaultOrderEffects, overrides)
+  const effects = avecSurcharges(defaultOrderEffects, surcharges?.email)
 
   const { updated, plan, ecriture } = await prisma.$transaction(async (tx) => {
     if (!(await verrouillerCommande(tx, orderId))) {
@@ -456,7 +462,7 @@ export async function updateOrderStatus(
     return { updated, plan, ecriture }
   })
 
-  await exécuterStock(ecriture)
+  await exécuterStock(ecriture, surcharges?.stock ?? {})
   await executerCommande(plan, effects)
   return updated
 }

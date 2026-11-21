@@ -15,14 +15,25 @@ const GENRE_STOCK = "variante.stock.changee"
 const ECRIVAIN_CATALOGUE = "lib/use-cases/admin-catalog.ts"
 const ECRIVAIN_IMPORT = "lib/use-cases/import-produits.ts"
 
-const DECLARATION_STOCK =
-  /\bdeclarerApresEcriture\s*\(\s*["']variante\.stock\.changee["']/
+const NOMS_DECLARATION =
+  /\bdeclarerApresEcriture(?:\s+as\s+([A-Za-z_$][\w$]*))?/g
+
+const MACHINERIE_DECLARATION = new Set([
+  "lib/apres-ecriture.ts",
+  "lib/apres-ecriture-redeclaration.ts",
+])
 
 const MOUVEMENT_STOCK =
   /productVariant\.(?:update|updateMany)\s*\(\s*\{[\s\S]{0,400}?\b(?:stock\s*:|donneesVariante\s*\()/
 
 const MOUVEMENT_ARITHMETIQUE =
   /productVariant\.(?:update|updateMany)\s*\(\s*\{[\s\S]{0,400}?\b(?:decrement|increment)\s*:/
+
+const ECRITURE_SQL =
+  /\$\s*(?:executeRaw|queryRaw)(?:Unsafe)?\s*(?:<[\s\S]*?>)?`([\s\S]*?)`/g
+
+const CREATION_STOCK =
+  /productVariant\.(?:create|createMany|createManyAndReturn)\s*\(\s*\{[\s\S]{0,400}?\bstock\s*:/
 
 const APPELANTS = [
   ECRIVAIN_CATALOGUE,
@@ -74,16 +85,75 @@ function occurrences(source: string, valeur: string): number {
   return source.split(valeur).length - 1
 }
 
+function nomsDeDeclaration(source: string): string[] {
+  return [
+    ...new Set(
+      [...source.matchAll(NOMS_DECLARATION)].map(
+        (match) => match[1] ?? "declarerApresEcriture"
+      )
+    ),
+  ]
+}
+
+function appelsDeDeclaration(
+  source: string
+): { genreLitteral: string | null }[] {
+  return nomsDeDeclaration(source).flatMap((nom) => {
+    const motif = `\\b${nom}\\s*\\(\\s*`
+    const litteraux = [
+      ...source.matchAll(new RegExp(`${motif}(["'\`])([^"'\`]*)\\1`, "g")),
+    ]
+    const nonLitteraux = [
+      ...source.matchAll(new RegExp(`${motif}(?!["'\`])`, "g")),
+    ]
+    return [
+      ...litteraux.map((match) => ({ genreLitteral: match[2]! })),
+      ...nonLitteraux.map(() => ({ genreLitteral: null })),
+    ]
+  })
+}
+
 function declarants(sources: readonly SourceProduction[]): string[] {
   return sources
-    .filter(({ source }) => DECLARATION_STOCK.test(source))
+    .filter(({ source }) =>
+      appelsDeDeclaration(source).some(
+        ({ genreLitteral }) => genreLitteral === GENRE_STOCK
+      )
+    )
     .map(({ chemin }) => chemin)
     .sort()
 }
 
+function declarationsSansGenreLitteral(
+  sources: readonly SourceProduction[]
+): string[] {
+  return sources
+    .filter(
+      ({ chemin, source }) =>
+        chemin !== PROPRIETAIRE &&
+        !MACHINERIE_DECLARATION.has(chemin) &&
+        appelsDeDeclaration(source).some(
+          ({ genreLitteral }) => genreLitteral === null
+        )
+    )
+    .map(({ chemin }) => chemin)
+    .sort()
+}
+
+function ecritureSqlStock(source: string): boolean {
+  return [...source.matchAll(ECRITURE_SQL)].some(
+    ([, requete]) => /ProductVariant/i.test(requete!) && /stock/i.test(requete!)
+  )
+}
+
 function ecrivainsDeMouvement(sources: readonly SourceProduction[]): string[] {
   return sources
-    .filter(({ source }) => MOUVEMENT_STOCK.test(source))
+    .filter(
+      ({ source }) =>
+        MOUVEMENT_STOCK.test(source) ||
+        CREATION_STOCK.test(source) ||
+        ecritureSqlStock(source)
+    )
     .map(({ chemin }) => chemin)
     .sort()
 }
@@ -97,6 +167,7 @@ function infractions(sources: readonly SourceProduction[]): string[] {
   return [
     ...new Set([
       ...declarants(sources).filter((chemin) => chemin !== PROPRIETAIRE),
+      ...declarationsSansGenreLitteral(sources),
       ...ecrivainsDeMouvement(sources).filter(
         (chemin) => chemin !== PROPRIETAIRE && !ECRITURES_IDENTITE.has(chemin)
       ),
@@ -115,9 +186,13 @@ describe("Commande — frontière de la déclaration de stock", () => {
         ...ECRITURES_IDENTITE.keys(),
       ])
     )
-    for (const [chemin, { raison, signature }] of ECRITURES_IDENTITE) {
-      expect(raison.length, chemin).toBeGreaterThan(0)
+    for (const [chemin, { signature }] of ECRITURES_IDENTITE) {
       expect(sourceDuDepot(chemin).source, chemin).toContain(signature)
+    }
+    for (const chemin of MACHINERIE_DECLARATION) {
+      expect(sourceDuDepot(chemin).source, chemin).toContain(
+        "declarerApresEcriture"
+      )
     }
   })
 
@@ -147,17 +222,24 @@ describe("Commande — frontière de la déclaration de stock", () => {
       const source = sourceDuDepot(chemin).source
       expect(importeDe(source, "lib/use-cases/commande"), chemin).toBe(true)
       expect(/écrireLeStock|exécuterStock/.test(source), chemin).toBe(true)
-      expect(DECLARATION_STOCK.test(source), chemin).toBe(false)
+      expect(
+        appelsDeDeclaration(source).some(
+          ({ genreLitteral }) => genreLitteral === GENRE_STOCK
+        ),
+        chemin
+      ).toBe(false)
     }
   })
 
   it("les identités Variante permises portent leur raison dans les données", () => {
     const catalogue = sourceDuDepot(ECRIVAIN_CATALOGUE).source
-    for (const [chemin, { raison, genre }] of ECRITURES_IDENTITE) {
-      expect(raison.length, chemin).toBeGreaterThan(0)
-      expect(DECLARATION_STOCK.test(sourceDuDepot(chemin).source), chemin).toBe(
-        false
-      )
+    for (const [chemin, { genre }] of ECRITURES_IDENTITE) {
+      expect(
+        appelsDeDeclaration(sourceDuDepot(chemin).source).some(
+          ({ genreLitteral }) => genreLitteral === GENRE_STOCK
+        ),
+        chemin
+      ).toBe(false)
       expect(catalogue, genre).toContain(`"${genre}"`)
     }
     expect(
@@ -196,5 +278,44 @@ describe("Commande — frontière de la déclaration de stock", () => {
     expect(
       infractions(avecSource(SOURCES, ECRIVAIN_CATALOGUE, catalogueEnViolation))
     ).toEqual([ECRIVAIN_CATALOGUE])
+
+    const importAlias = sourceApres(
+      reel,
+      `import { declarerApresEcriture as declarer } from "@/lib/apres-ecriture"`
+    )
+    const declarationAliassee = sourceApres(
+      importAlias,
+      `const declarationAliassee = declarer("variante.stock.changee", { commandeId: "x" })`
+    )
+    const corpusAlias = avecSource(SOURCES, cible, declarationAliassee)
+    expect(declarants(corpusAlias)).toEqual([PROPRIETAIRE, cible].sort())
+    expect(infractions(corpusAlias)).toEqual([cible])
+
+    const genreNonLitteral = sourceApres(
+      reel,
+      `const genreStock = "variante.stock.changee"\nconst declarationGeneree = declarerApresEcriture(genreStock, { commandeId: "x" })`
+    )
+    const corpusGenreNonLitteral = avecSource(SOURCES, cible, genreNonLitteral)
+    expect(infractions(corpusGenreNonLitteral)).toEqual([cible])
+
+    const ecritureSql = sourceApres(
+      reel,
+      `const ecritureSql = (tx: Prisma.TransactionClient) => tx.$executeRaw\`UPDATE "ProductVariant" SET "stock" = 0\``
+    )
+    const corpusSql = avecSource(SOURCES, cible, ecritureSql)
+    expect(ecrivainsDeMouvement(corpusSql)).toEqual(
+      [...ecrivainsDeMouvement(SOURCES), cible].sort()
+    )
+    expect(infractions(corpusSql)).toEqual([cible])
+
+    const ecritureCreation = sourceApres(
+      reel,
+      `const ecritureCreation = (tx: Prisma.TransactionClient) => tx.productVariant.create({ data: { sku: "x", stock: 0 } })`
+    )
+    const corpusCreation = avecSource(SOURCES, cible, ecritureCreation)
+    expect(ecrivainsDeMouvement(corpusCreation)).toEqual(
+      [...ecrivainsDeMouvement(SOURCES), cible].sort()
+    )
+    expect(infractions(corpusCreation)).toEqual([cible])
   })
 })
