@@ -20,9 +20,8 @@ export const site = {
 
 export const assurancePiedDePage = {
   paiement:
-    "Paiement à la livraison. TVA 20% incluse sur tous les prix affichés.",
-  livraison:
-    "Livraison rapide partout au Maroc. Frais selon la Ville de livraison.",
+    "Paiement à la livraison, TVA 20 % incluse sur tous les prix affichés.",
+  livraison: "Frais de livraison selon la ville.",
   telephone: "Une question ? Appelez-nous au",
 } as const
 
