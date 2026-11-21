@@ -177,6 +177,12 @@ describe("StorefrontFooter — les pages de la boutique", () => {
     expect(bande).toContain(`href="tel:+${site.contactPhoneDigits}"`)
   })
 
+  it("ne rend aucune icône dans la bande d'assurance", async () => {
+    const bande = bandeAssurance(await rendreLePied(structures))
+
+    expect(bande).not.toContain("<svg")
+  })
+
   it("ne promet pas la livraison offerte et laisse les conditions à la rangée légale", async () => {
     const html = await rendreLePied(structures)
 

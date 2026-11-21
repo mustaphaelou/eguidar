@@ -1,12 +1,5 @@
 import Link from "next/link"
 
-import {
-  CallIcon,
-  DeliveryTruck02Icon,
-  Money01Icon,
-} from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
-
 import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
 import { assurancePiedDePage, site } from "@/lib/site"
 import type { NavCategory } from "@/lib/use-cases/storefront"
@@ -23,10 +16,8 @@ interface SectionDuPiedDePage {
   readonly liens: readonly LienDuPiedDePage[]
 }
 
-type ColonneDuPiedDePage = readonly SectionDuPiedDePage[]
-
 interface PiedDePage {
-  readonly colonnes: readonly ColonneDuPiedDePage[]
+  readonly sections: readonly SectionDuPiedDePage[]
   readonly mentions: {
     readonly copyright: string
     readonly liens: readonly LienDuPiedDePage[]
@@ -35,8 +26,20 @@ interface PiedDePage {
 
 const RECETTE_PETIT_TEXTE = "text-[12px] leading-[1.3334] tracking-[-0.01em]"
 
-const RETOURS_DU_LIEN =
-  "hover:text-foreground hover:underline active:opacity-70 motion-safe:transition-[color,opacity]"
+const LIEN_DE_PIED =
+  "text-encre-annuaire hover:text-foreground hover:underline active:opacity-70 motion-safe:transition-[color,opacity]"
+
+const LIEN_DE_BANDE =
+  "text-link underline decoration-1 underline-offset-2 hover:text-foreground active:opacity-70 motion-safe:transition-[color,opacity]"
+
+const CIBLE_LEGALE = "inline-flex min-h-7 min-w-6 items-center"
+
+const GRILLE_DU_PIED: Readonly<Partial<Record<number, string>>> = {
+  3: "md:grid-cols-3",
+  4: "md:grid-cols-4",
+}
+
+const GRILLE_PAR_DEFAUT = "md:grid-cols-4"
 
 function contenuDuPiedDePage(structures: readonly NavCategory[]): PiedDePage {
   const catalogue: SectionDuPiedDePage = {
@@ -82,12 +85,10 @@ function contenuDuPiedDePage(structures: readonly NavCategory[]): PiedDePage {
     ],
   }
 
-  const colonnes = [[catalogue], [compte], [aide, maison]]
-    .map((sections) => sections.filter((section) => section.liens.length > 0))
-    .filter((sections) => sections.length > 0)
-
   return {
-    colonnes,
+    sections: [catalogue, compte, aide, maison].filter(
+      (section) => section.liens.length > 0
+    ),
     mentions: {
       copyright: `© ${site.name} — Le code est sous`,
       liens: [
@@ -105,18 +106,19 @@ function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
       open
       data-slot="section-pied-de-page"
       data-section={section.id}
-      className="group border-b border-hairline md:border-b-0"
+      className="group border-b border-hairline pb-2 last:border-b-0 md:border-b-0 md:pb-0"
     >
       <summary
-        className={`flex cursor-pointer list-none items-center justify-between gap-4 py-1 font-semibold text-foreground [&::-webkit-details-marker]:hidden ${RECETTE_PETIT_TEXTE}`}
+        className={cn(
+          "group/sommaire flex cursor-pointer list-none items-center justify-between gap-4 py-2.5 font-semibold text-foreground md:justify-start md:gap-1.5 md:py-1 [&::-webkit-details-marker]:hidden",
+          RECETTE_PETIT_TEXTE
+        )}
       >
-        <h3 className={`font-semibold text-foreground ${RECETTE_PETIT_TEXTE}`}>
-          {section.titre}
-        </h3>
+        <h3 className="font-semibold text-foreground">{section.titre}</h3>
         <svg
           aria-hidden="true"
           viewBox="0 0 16 16"
-          className="size-4 shrink-0 text-muted-foreground group-open:rotate-180 motion-safe:transition-transform"
+          className="size-4 shrink-0 text-muted-foreground group-open:rotate-180 motion-safe:transition-[rotate,opacity] md:group-focus-within/sommaire:opacity-100 md:group-hover/sommaire:opacity-100 md:[@media(hover:hover)]:opacity-0"
           fill="none"
         >
           <path
@@ -128,12 +130,15 @@ function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
           />
         </svg>
       </summary>
-      <ul className={`mt-2 flex flex-col gap-1 ${RECETTE_PETIT_TEXTE}`}>
+      <ul className={cn("mt-2 flex flex-col md:mt-0.5", RECETTE_PETIT_TEXTE)}>
         {section.liens.map((lien) => (
           <li key={lien.href}>
             <Link
               href={lien.href}
-              className={`flex min-h-7 items-center text-encre-annuaire ${RETOURS_DU_LIEN}`}
+              className={cn(
+                "flex min-h-7 items-center md:min-h-6",
+                LIEN_DE_PIED
+              )}
             >
               {lien.label}
             </Link>
@@ -153,97 +158,77 @@ export function StorefrontFooter({
   const [licence, ...documents] = piedDePage.mentions.liens
 
   return (
-    <footer
-      aria-labelledby="pied-de-page-titre"
-      className="border-t border-hairline bg-muted"
-    >
+    <footer aria-labelledby="pied-de-page-titre" className="bg-muted">
       <h2 id="pied-de-page-titre" className="sr-only">
         Pied de page
       </h2>
-      <div className={cn(CONTENEUR_BOUTIQUE, "py-10")}>
-        <nav
-          aria-label="Liens du pied de page"
-          className="grid gap-8 sm:grid-cols-2 md:grid-cols-3"
-        >
-          {piedDePage.colonnes.map((colonne) => (
-            <div key={colonne[0]!.id} className="flex flex-col gap-6">
-              {colonne.map((section) => (
-                <SectionDuPiedDePage key={section.id} section={section} />
-              ))}
-            </div>
-          ))}
-        </nav>
+      <div className={CONTENEUR_BOUTIQUE}>
+        <div className="border-t border-hairline pt-4 pb-4">
+          <nav
+            aria-label="Liens du pied de page"
+            className={cn(
+              "grid grid-cols-1",
+              GRILLE_DU_PIED[piedDePage.sections.length] ?? GRILLE_PAR_DEFAUT
+            )}
+          >
+            {piedDePage.sections.map((section) => (
+              <SectionDuPiedDePage key={section.id} section={section} />
+            ))}
+          </nav>
 
-        <section
-          data-slot="bande-assurance"
-          className={`mt-8 text-muted-foreground ${RECETTE_PETIT_TEXTE}`}
-        >
-          <p>{site.tagline}</p>
-          <div className="mt-4 flex flex-col gap-2.5">
-            <p className="flex items-start gap-2.5">
-              <HugeiconsIcon
-                icon={Money01Icon}
-                strokeWidth={2}
-                className="mt-0.5 size-4 shrink-0"
-              />
-              <span>{assurancePiedDePage.paiement}</span>
-            </p>
-            <p className="flex items-start gap-2.5">
-              <HugeiconsIcon
-                icon={DeliveryTruck02Icon}
-                strokeWidth={2}
-                className="mt-0.5 size-4 shrink-0"
-              />
-              <span>{assurancePiedDePage.livraison}</span>
-            </p>
-            <p className="flex items-start gap-2.5">
-              <HugeiconsIcon
-                icon={CallIcon}
-                strokeWidth={2}
-                className="mt-0.5 size-4 shrink-0"
-              />
-              <span>
-                {assurancePiedDePage.telephone}{" "}
-                <a
-                  href={`tel:+${site.contactPhoneDigits}`}
-                  className={`inline-flex min-h-7 min-w-6 items-center ${RETOURS_DU_LIEN}`}
-                >
-                  {site.contactPhone}
-                </a>
-              </span>
-            </p>
-          </div>
-        </section>
-
-        <div
-          data-slot="rangée-légale"
-          className={`mt-8 flex flex-wrap items-center gap-x-2 border-t border-hairline pt-6 text-muted-foreground ${RECETTE_PETIT_TEXTE}`}
-        >
-          <span>
-            {piedDePage.mentions.copyright}{" "}
+          <p
+            data-slot="bande-assurance"
+            className={cn("mt-7 text-muted-foreground", RECETTE_PETIT_TEXTE)}
+          >
+            {site.tagline} {assurancePiedDePage.paiement}{" "}
+            {assurancePiedDePage.livraison} {assurancePiedDePage.telephone}{" "}
             <a
-              href={licence!.href}
-              target="_blank"
-              rel="noreferrer"
-              className={`inline-flex min-h-7 min-w-6 items-center ${RETOURS_DU_LIEN}`}
+              href={`tel:+${site.contactPhoneDigits}`}
+              className={LIEN_DE_BANDE}
             >
-              {licence!.label}
+              {site.contactPhone}
             </a>
             .
-          </span>
-          {documents.map((lien, index) => (
-            <span key={lien.href} className="flex items-center gap-x-2">
-              {index > 0 ? (
-                <span aria-hidden="true" className="h-2.5 w-px bg-hairline" />
-              ) : null}
-              <Link
-                href={lien.href}
-                className={`inline-flex min-h-7 min-w-6 items-center ${RETOURS_DU_LIEN}`}
+          </p>
+
+          <div
+            data-slot="rangée-légale"
+            className={cn(
+              "mt-5 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-hairline pt-3 text-muted-foreground",
+              RECETTE_PETIT_TEXTE
+            )}
+          >
+            <p>
+              {piedDePage.mentions.copyright}{" "}
+              <a
+                href={licence!.href}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(CIBLE_LEGALE, LIEN_DE_PIED)}
               >
-                {lien.label}
-              </Link>
-            </span>
-          ))}
+                {licence!.label}
+              </a>
+              .
+            </p>
+            <ul className="flex flex-wrap items-center gap-x-2">
+              {documents.map((lien, index) => (
+                <li key={lien.href} className="flex items-center gap-x-2">
+                  {index > 0 ? (
+                    <span
+                      aria-hidden="true"
+                      className="h-2.5 w-px bg-hairline"
+                    />
+                  ) : null}
+                  <Link
+                    href={lien.href}
+                    className={cn(CIBLE_LEGALE, LIEN_DE_PIED)}
+                  >
+                    {lien.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </footer>
