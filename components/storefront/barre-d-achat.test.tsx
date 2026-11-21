@@ -173,7 +173,10 @@ describe("BarreDAchat", () => {
     const port = rendreBarre(undefined, { indisponible: true })
 
     expect(boutonBarre().disabled).toBe(true)
-    expect(boutonBarre().textContent).toContain("Ajouter au panier")
+    expect(boutonBarre().textContent).toBe("Indisponible")
+    expect(boutonBarre().getAttribute("aria-label")).toBe(
+      "Produit indisponible"
+    )
 
     cliquer()
     await rejouerTransition()

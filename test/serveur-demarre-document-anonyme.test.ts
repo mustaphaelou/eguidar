@@ -554,6 +554,19 @@ describe.skipIf(RAISON_SANS_BUILD !== null)(
         })
       })
 
+      afterAll(async () => {
+        const adminId = `admin-${MARQUEUR_ADMIN}`
+        const clientId = `client-${MARQUEUR_ADMIN}`
+
+        await prisma.order.deleteMany({ where: { userId: clientId } })
+        await prisma.session.deleteMany({
+          where: { userId: { in: [adminId, clientId] } },
+        })
+        await prisma.user.deleteMany({
+          where: { id: { in: [adminId, clientId] } },
+        })
+      })
+
       const chemins = () => [
         {
           nom: "la liste",

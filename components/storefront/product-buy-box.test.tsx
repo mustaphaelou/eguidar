@@ -109,11 +109,11 @@ function buyBox(
 }
 
 function boutonAjouter() {
-  return [...container.querySelectorAll<HTMLButtonElement>("button")].find(
-    (button) =>
-      !button.closest("[data-slot='barre-d-achat']") &&
-      button.textContent?.includes("Ajouter au panier")
-  )!
+  return [
+    ...container.querySelectorAll<HTMLButtonElement>(
+      "button[data-slot='button']"
+    ),
+  ].find((button) => !button.closest("[data-slot='barre-d-achat']"))!
 }
 
 async function cliquerAjouter() {
@@ -192,11 +192,116 @@ describe("ProductBuyBox", () => {
     )
 
     expect(boutonAjouter().disabled).toBe(true)
+    expect(boutonAjouter().textContent).toBe("Produit indisponible")
 
     await cliquerAjouter()
 
     expect(port.appels).toEqual([])
     expect(container.textContent).not.toContain("Ajouté au panier")
+  })
+
+  it("sélectionne la Variante en stock la moins chère, même si une autre ouvre la liste", async () => {
+    const port = creerPortPanierEnMemoire()
+
+    render(
+      buyBox(port, [
+        {
+          id: "variante-rupture",
+          name: "Burgundy",
+          sku: "PBB-R",
+          prix: 100000,
+          stock: 0,
+        },
+        {
+          id: "variante-disponible",
+          name: "Glacier",
+          sku: "PBB-D",
+          prix: 125000,
+          stock: 2,
+        },
+      ])
+    )
+
+    expect(container.textContent).toContain(formatPrice(125000))
+    expect(container.textContent).toContain("En stock (2 disponibles)")
+    expect(boutonAjouter().disabled).toBe(false)
+    expect(boutonAjouter().textContent).toBe("Ajouter au panier")
+
+    await cliquerAjouter()
+
+    expect(port.appels).toEqual([
+      { operation: "ajouter", variantId: "variante-disponible", quantity: 1 },
+    ])
+  })
+
+  it("signale une Variante épuisée dans la liste et désactive l'action quand on la choisit", async () => {
+    const port = creerPortPanierEnMemoire()
+
+    render(
+      buyBox(port, [
+        {
+          id: "variante-a",
+          name: "Burgundy",
+          sku: "PBB-R",
+          prix: 100000,
+          stock: 0,
+        },
+        {
+          id: "variante-b",
+          name: "Glacier",
+          sku: "PBB-D",
+          prix: 100000,
+          stock: 3,
+        },
+      ])
+    )
+
+    const epuisee = [
+      ...container.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.includes("Burgundy"))!
+    expect(epuisee.getAttribute("aria-label")).toBe(
+      "Burgundy — rupture de stock"
+    )
+    expect(epuisee.querySelector("span")?.className).toContain("line-through")
+
+    act(() => {
+      epuisee.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(container.textContent).toContain("Variante en rupture de stock")
+    expect(boutonAjouter().disabled).toBe(true)
+    expect(boutonAjouter().textContent).toBe("Variante indisponible")
+
+    await cliquerAjouter()
+
+    expect(port.appels).toEqual([])
+  })
+
+  it("désactive l'action et nomme la rupture quand toutes les Variantes sont épuisées", () => {
+    render(
+      buyBox(creerPortPanierEnMemoire(), [
+        {
+          id: "variante-a",
+          name: "Burgundy",
+          sku: "PBB-R",
+          prix: 100000,
+          stock: 0,
+        },
+        {
+          id: "variante-b",
+          name: "Glacier",
+          sku: "PBB-D",
+          prix: 100000,
+          stock: 0,
+        },
+      ])
+    )
+
+    expect(container.textContent).toContain("Rupture de stock")
+    expect(boutonAjouter().disabled).toBe(true)
+    expect(boutonAjouter().textContent).toBe("Produit indisponible")
   })
 
   it("rend la Barre d'achat initialement masquée tant que le bouton est visible", () => {

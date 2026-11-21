@@ -47,12 +47,18 @@ describe("toIndexableProduct", () => {
     })
   })
 
-  it("computes minPrice over base price plus variant deltas", () => {
+  it("computes minPrice over the variant prices, never the unreachable base price", () => {
     const doc = toIndexableProduct(
       makeProduct({
         variants: [{ name: "Var", sku: "V1", priceDelta: 150000, stock: 3 }],
       })
     )
+
+    expect(doc.minPrice).toBe(250000)
+  })
+
+  it("falls back to the base price when the Produit has no Variante", () => {
+    const doc = toIndexableProduct(makeProduct({ variants: [] }))
 
     expect(doc.minPrice).toBe(100000)
   })

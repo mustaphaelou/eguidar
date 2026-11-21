@@ -80,8 +80,9 @@ module Carte produit, et c'est lui que ce travail étend.
 - **Un Produit sans Variante est légal, et la règle est écrite.** Aucun contrôle d'un module de rendu —
   un bouton désactivé en particulier — n'en est le propriétaire. La règle est écrite au lieu où elle se
   décide : le schéma d'entrée du Catalogue accepte un tableau de Variantes vide, et le prix minimal
-  retombe alors sur le prix de base (`minVariantPrice` est amorcé sur le prix de base). Aucune validation
-  de Variante minimale n'apparaît par le transport.
+  retombe alors sur le prix de base — et seulement alors. Dès qu'une Variante existe, `minVariantPrice`
+  ne retient que les prix des Variantes : une base plus basse n'est pas un prix achetable. Aucune
+  validation de Variante minimale n'apparaît par le transport.
 
 - **Une spécification stockée à moitié lisible répond l'enregistrement vide, en entier.** La colonne
   `specs` est un `Json` sans forme garantie : seule une série d'entrées dont **toutes** les valeurs

@@ -158,10 +158,7 @@ export function StorefrontFooter({
   const [licence, ...documents] = piedDePage.mentions.liens
 
   return (
-    <footer aria-labelledby="pied-de-page-titre" className="bg-muted">
-      <h2 id="pied-de-page-titre" className="sr-only">
-        Pied de page
-      </h2>
+    <footer className="bg-muted">
       <div className={CONTENEUR_BOUTIQUE}>
         <div className="border-t border-hairline pt-4 pb-4">
           <nav

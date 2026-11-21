@@ -8,7 +8,10 @@ import {
   getMeiliSearch,
   PRODUCTS_INDEX,
 } from "@/lib/meili"
-import type { IndexableProduct } from "@/lib/index-projection"
+import {
+  toIndexableProduct,
+  type IndexableProduct,
+} from "@/lib/index-projection"
 
 const meili = getMeiliSearch()
 const runId = randomUUID()
@@ -68,6 +71,51 @@ describe.runIf(!!meili)("Meilisearch product index", () => {
         .search("Produit Meili Test")
       const hit = results.hits.find((h) => h.id === id)
       expect(hit).toMatchObject({ id, brand: "Marque Meili", price: 50000 })
+    }
+  )
+
+  it(
+    "stores the Variant price, not the base price, in the indexed Document",
+    { timeout: TASK_WAIT_TIMEOUT },
+    async () => {
+      const id = randomUUID()
+      const doc = toIndexableProduct({
+        id,
+        name: `iPhone de sonde ${id}`,
+        slug: `meili-prix-${id}`,
+        description: "",
+        brand: "Apple",
+        price: 1_799_990,
+        specs: {},
+        images: [],
+        isFeatured: false,
+        freeShipping: true,
+        updatedAt: new Date(),
+        variants: [
+          {
+            priceDelta: 1_888_800,
+            stock: 1,
+            name: "512 Go",
+            sku: `SKU-${id}`,
+          },
+        ],
+        category: {
+          id: "categorie-meili",
+          slug: "categorie-meili",
+          name: "Catégorie Meili",
+        },
+      })
+      expect(doc.minPrice).toBe(3_688_790)
+
+      const task = await client.index(PRODUCTS_INDEX).addDocuments([doc])
+      await client.tasks.waitForTask(task.taskUid, {
+        timeout: TASK_WAIT_TIMEOUT,
+      })
+
+      const results = await client.index(PRODUCTS_INDEX).search(doc.name)
+      const hit = results.hits.find((candidat) => candidat.id === id)
+      expect(hit?.minPrice).toBe(3_688_790)
+      expect(hit?.price).toBe(1_799_990)
     }
   )
 

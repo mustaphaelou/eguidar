@@ -11,10 +11,11 @@ export function minVariantPrice(
   basePrice: number,
   variants: VariantPriceAndStock[]
 ): number {
+  if (variants.length === 0) return basePrice
   return variants.reduce(
     (min, variant) =>
       Math.min(min, prixVariante(basePrice, variant.priceDelta)),
-    basePrice
+    Number.POSITIVE_INFINITY
   )
 }
 

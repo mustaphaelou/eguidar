@@ -52,15 +52,24 @@ export function BarreDAchat({
         <div className="flex shrink-0 flex-col items-end gap-1">
           <Button
             size="xl"
+            variant={indisponible ? "secondary" : "default"}
             disabled={indisponible || enAttente}
             onClick={lancerAjout}
             aria-label={
-              variantNom ? `Ajouter au panier — ${variantNom}` : undefined
+              indisponible
+                ? variantNom
+                  ? `Produit indisponible — ${variantNom}`
+                  : "Produit indisponible"
+                : variantNom
+                  ? `Ajouter au panier — ${variantNom}`
+                  : undefined
             }
             className="rounded-full text-body max-[359px]:px-2"
           >
             {enAttente ? (
               "Ajout…"
+            ) : indisponible ? (
+              <span>Indisponible</span>
             ) : (
               <>
                 <span>Ajouter</span>

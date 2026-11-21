@@ -147,13 +147,12 @@ describe("StorefrontFooter — les pages de la boutique", () => {
     }
   })
 
-  it("nomme le contentinfo et la navigation de ses colonnes", async () => {
+  it("rend le contentinfo et nomme la navigation de ses colonnes", async () => {
     const html = await rendreLePied(structures)
 
-    expect(html).toContain('<footer aria-labelledby="pied-de-page-titre"')
-    expect(html).toMatch(
-      /<h2[^>]*id="pied-de-page-titre"[^>]*>Pied de page<\/h2>/
-    )
+    expect(html).toContain("<footer")
+    expect(html).not.toContain("Pied de page")
+    expect(html).not.toContain('id="pied-de-page-titre"')
     expect(html).toContain('<nav aria-label="Liens du pied de page"')
   })
 
