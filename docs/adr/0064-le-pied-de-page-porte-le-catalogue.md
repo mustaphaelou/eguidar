@@ -95,5 +95,5 @@ qu'il ne recouvre pas le pied sur les captures hautes ; le pied lui-même n'est 
 [ADR-0065](0065-le-pied-de-page-prend-l-anatomie-d-apple-com.md) retire la colonne comme niveau de
 données : une section est désormais une cellule de la grille, et la forme `colonnes` du §9.4 de la
 spec laisse la place à une liste plate. La décision de cet ADR tient — sans Structure, la section et
-sa porte ne sont pas rendues — et sa phrase « la section et sa colonne ne sont pas rendues » se lit
+sa cellule ne sont pas rendues — et sa phrase « la section et sa colonne ne sont pas rendues » se lit
 maintenant « la section et sa cellule ». Aucun autre point de cette décision ne change.

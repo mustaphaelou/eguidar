@@ -119,8 +119,9 @@ ni sur le retrait du Logo, ni sur la règle de la destination unique.
 
 - Le Pied de page rend quatre sections, une destination par section, et aucun logo.
 - Les sections restent des disclosures natives, ouvertes dans le HTML serveur, sans composant client.
-- Le sommaire porte le chevron à toutes les largeurs, `aria-hidden` ; il est visible sous `md` et
-  révélé au survol comme au focus à partir de `md`.
+- Le sommaire porte le chevron à toutes les largeurs, `aria-hidden` ; il est visible sous `md` et sur
+  tout appareil sans survol, et révélé au survol comme au focus à partir de `md` sur un appareil qui
+  connaît le survol.
 - Le nombre de pistes de la grille suit le nombre de sections rendues : trois sans Catalogue.
 - La rangée légale ne porte que le copyright, la licence MIT, *Conditions & livraison* et
   *Suppression des données*, dans cet ordre et tous liens dans la même encre ; la bande d'assurance
