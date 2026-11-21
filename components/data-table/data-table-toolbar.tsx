@@ -34,6 +34,7 @@ export type DataTableToolbarProps<TData extends RowData> = {
   selectedCount?: number
   statusLabels?: DataTableStatusLabels
   filters?: DataTableToolbarFilter[]
+  onReset?: () => void
   className?: string
 }
 
@@ -45,6 +46,7 @@ function DataTableToolbar<TData extends RowData>({
   selectedCount,
   statusLabels,
   filters = [],
+  onReset,
   className,
 }: DataTableToolbarProps<TData>) {
   const idRecherche = useId()
@@ -97,6 +99,10 @@ function DataTableToolbar<TData extends RowData>({
             size="sm"
             className="max-sm:h-9"
             onClick={() => {
+              if (onReset) {
+                onReset()
+                return
+              }
               table.resetColumnFilters()
               table.setGlobalFilter("")
             }}
