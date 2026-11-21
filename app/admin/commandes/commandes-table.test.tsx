@@ -12,8 +12,10 @@ import type { AdminOrdersPage } from "@/lib/use-cases/orders"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }))
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace }),
 }))
 
 vi.mock("next/link", () => ({
@@ -59,6 +61,7 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   root = null
+  replace.mockClear()
 })
 
 afterEach(() => {
@@ -146,6 +149,26 @@ describe("CommandesTable — la grille étiquetée", () => {
         .get(ORDER_STATUS_LABELS.confirmed)
         ?.getAttribute("aria-pressed")
     ).toBe("false")
+  })
+
+  it("réinitialise en une navigation sans ressusciter le filtre Statut", () => {
+    rendre()
+
+    const bouton = [
+      ...container.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((candidat) => candidat.textContent?.trim() === "Réinitialiser")
+    expect(bouton).toBeDefined()
+    act(() => {
+      bouton!.click()
+    })
+
+    expect(replace).toHaveBeenCalledTimes(1)
+    expect(replace).toHaveBeenCalledWith("/admin/commandes", { scroll: false })
+
+    const declencheur = [
+      ...container.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((candidat) => candidat.textContent?.includes("Statut de commande"))
+    expect(declencheur!.getAttribute("aria-label")).not.toContain("En attente")
   })
 
   it("ne laisse aucun bouton ni champ sans nom accessible", () => {
