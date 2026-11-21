@@ -94,7 +94,7 @@ export interface EffetsStock {
   purgeCatalogue(produit: CatalogueEventProduct): Promise<void> | void
 }
 
-export const defaultStockEffects: EffetsStock = {
+const defaultStockEffects: EffetsStock = {
   reindexProducts: indexProductDocuments,
   revalidateCatalog: revaliderCatalogue,
   async purgeCatalogue(produit) {

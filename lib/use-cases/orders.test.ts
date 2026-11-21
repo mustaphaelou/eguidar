@@ -647,6 +647,65 @@ describe("order placement", () => {
     expect(orderCount).toBe(0)
   })
 
+  it("le checkout déclare un Fait de stock par Produit vidé", async () => {
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
+    const produitA = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP1 },
+    })
+    const produitC = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+    })
+    await prisma.automationEvent.deleteMany({
+      where: { entityId: { in: [produitA.productId, produitC.productId] } },
+    })
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP1, 1)
+    await ajouterArticleAuPanier(variantP2, 1)
+    await ajouterArticleAuPanier(variantP4, 1)
+
+    await placeOrder(userIdA, await checkoutInput(userIdA), {
+      sendOrderPlacedEmail,
+    })
+
+    const faits = await prisma.automationEvent.findMany({
+      where: {
+        type: "variante.stock.changee",
+        entityId: { in: [produitA.productId, produitC.productId] },
+      },
+    })
+    expect(faits).toHaveLength(2)
+    expect(faits.map((fait) => fait.entityId).sort()).toEqual(
+      [produitA.productId, produitC.productId].sort()
+    )
+    for (const fait of faits) {
+      expect(fait.payload).toEqual(
+        expect.objectContaining({
+          produitId: fait.entityId,
+          slug: expect.any(String),
+          categoryId: expect.any(String),
+        })
+      )
+    }
+  })
+
+  it("regroupe en un seul refus les Produits du Panier en rupture de stock", async () => {
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP2, 2)
+    await ajouterArticleAuPanier(variantP4, 3)
+
+    await expect(
+      placeOrder(userIdA, await checkoutInput(userIdA))
+    ).rejects.toMatchObject({
+      name: "OutOfStockError",
+      items: [
+        expect.objectContaining({ requested: 2, available: 1 }),
+        expect.objectContaining({ requested: 3, available: 2 }),
+      ],
+    })
+  })
+
   it("rolls back the whole order when one line goes out of stock mid-placement", async () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP1, 1)
@@ -1021,6 +1080,102 @@ describe("order status transitions", () => {
     )
   })
 
+  it("l'Annulation déclare un Fait de stock par Produit réapprovisionné", async () => {
+    const produitA = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP1 },
+    })
+    const produitC = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+    })
+    await prisma.automationEvent.deleteMany({
+      where: { entityId: { in: [produitA.productId, produitC.productId] } },
+    })
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP1, 1)
+    await ajouterArticleAuPanier(variantP4, 1)
+    const orderId = (await placeOrder(userIdA, await checkoutInput(userIdA))).id
+    const avant = await prisma.automationEvent.findMany({
+      where: {
+        type: "variante.stock.changee",
+        entityId: { in: [produitA.productId, produitC.productId] },
+      },
+    })
+    expect(avant).toHaveLength(2)
+
+    await updateOrderStatus(orderId, "cancelled", acteurId)
+
+    const apres = await prisma.automationEvent.findMany({
+      where: {
+        type: "variante.stock.changee",
+        entityId: { in: [produitA.productId, produitC.productId] },
+      },
+    })
+    expect(apres).toHaveLength(4)
+    for (const produitId of [produitA.productId, produitC.productId]) {
+      expect(apres.filter((fait) => fait.entityId === produitId)).toHaveLength(
+        2
+      )
+    }
+  })
+
+  it("la livraison ne déclare aucun Fait de stock", async () => {
+    const produitC = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantP4 },
+    })
+    const orderId = await placeSmallOrder(userIdA)
+    const avant = await prisma.automationEvent.count({
+      where: {
+        type: "variante.stock.changee",
+        entityId: produitC.productId,
+      },
+    })
+
+    await updateOrderStatus(orderId, "confirmed", acteurId)
+    await updateOrderStatus(orderId, "shipped", acteurId)
+    await updateOrderStatus(orderId, "delivered", acteurId)
+
+    expect(
+      await prisma.automationEvent.count({
+        where: {
+          type: "variante.stock.changee",
+          entityId: produitC.productId,
+        },
+      })
+    ).toBe(avant)
+  })
+
+  it(
+    "updateOrderStatus attend le verrou de la Commande avant de la lire",
+    { timeout: 20_000 },
+    async () => {
+      const orderId = await placeSmallOrder(userIdA)
+      const sendOrderStatusEmail = vi.fn<OrderEffects["sendOrderStatusEmail"]>(
+        async () => {}
+      )
+
+      const verrou = await retenirLeVerrou(
+        (tx) =>
+          tx.$queryRawUnsafe(
+            `SELECT id FROM "Order" WHERE id = $1 FOR UPDATE`,
+            orderId
+          ),
+        `%FROM "Order" WHERE id = $1 FOR UPDATE%`
+      )
+      const changement = updateOrderStatus(orderId, "confirmed", acteurId, {
+        sendOrderStatusEmail,
+      })
+      try {
+        await verrou.attendreBloques(1)
+      } finally {
+        verrou.liberer()
+      }
+      await verrou.transaction
+
+      expect((await changement).status).toBe("confirmed")
+      expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
+    }
+  )
+
   it("still updates the status when email dispatch fails", async () => {
     const orderId = await placeSmallOrder(userIdA)
 
@@ -1042,11 +1197,19 @@ describe("order status transitions", () => {
     await updateOrderStatus(orderId, "confirmed", acteurId)
     await updateOrderStatus(orderId, "shipped", acteurId)
     await updateOrderStatus(orderId, "delivered", acteurId)
+    const faitsAvant = await prisma.automationEvent.count({
+      where: { type: "variante.stock.changee" },
+    })
 
     await expect(
       updateOrderStatus(orderId, "returned", acteurId)
     ).rejects.toThrow(InvalidOrderTransitionError)
 
+    expect(
+      await prisma.automationEvent.count({
+        where: { type: "variante.stock.changee" },
+      })
+    ).toBe(faitsAvant)
     const order = await getOrder(userIdA, orderId)
     expect(order!.status).toBe("delivered")
     expect(
