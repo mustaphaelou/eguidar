@@ -89,3 +89,11 @@ qu'il ne recouvre pas le pied sur les captures hautes ; le pied lui-même n'est 
 | 390 px | ![Avant, 390 px](../screenshots/1091/avant-pied-de-page-390.png) | ![Après, 390 px](../screenshots/1091/apres-pied-de-page-390.png) |
 | 768 px | ![Avant, 768 px](../screenshots/1091/avant-pied-de-page-768.png) | ![Après, 768 px](../screenshots/1091/apres-pied-de-page-768.png) |
 | 1440 px | ![Avant, 1440 px](../screenshots/1091/avant-pied-de-page-1440.png) | ![Après, 1440 px](../screenshots/1091/apres-pied-de-page-1440.png) |
+
+## Amendement
+
+[ADR-0065](0065-le-pied-de-page-prend-l-anatomie-d-apple-com.md) retire la colonne comme niveau de
+données : une section est désormais une cellule de la grille, et la forme `colonnes` du §9.4 de la
+spec laisse la place à une liste plate. La décision de cet ADR tient — sans Structure, la section et
+sa porte ne sont pas rendues — et sa phrase « la section et sa colonne ne sont pas rendues » se lit
+maintenant « la section et sa cellule ». Aucun autre point de cette décision ne change.

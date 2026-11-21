@@ -12,10 +12,11 @@ dont la dernière empile deux sections. À 1203 px, les trois colonnes laissent 
 conteneur presque vide, l'annuaire ne lit pas comme celui d'apple.com, et la première chose qu'on y
 voit est une rangée de triangles.
 
-Cette décision **remplace** deux points tenus pour acquis par la spec #1086 et par la recherche :
-la taxonomie à trois colonnes du §9.2, avec *Aide* et *La maison* empilées dans la troisième, et la
-règle du §9.4 qui voulait le chevron visible à toute largeur. Elle ne revient ni sur le Catalogue
-d'ADR-0064, ni sur le retrait du Logo, ni sur la règle de la destination unique.
+Cette décision **remplace** trois points tenus pour acquis par la spec #1086, par la recherche et
+par #1090 : la taxonomie à trois colonnes du §9.2, avec *Aide* et *La maison* empilées dans la
+troisième ; la règle du §9.6 qui voulait le chevron visible à toute largeur ; et la phrase de #1090
+qui gardait la rangée légale dans l'encre adoucie. Elle ne revient ni sur le Catalogue d'ADR-0064,
+ni sur le retrait du Logo, ni sur la règle de la destination unique.
 
 ## Décision
 
@@ -32,9 +33,10 @@ d'ADR-0064, ni sur le retrait du Logo, ni sur la règle de la destination unique
 - **Le chevron est visible au doigt, révélé au survol et au focus sur bureau.** Il est rendu à
   toutes les largeurs dans le sommaire, `aria-hidden` — il n'annonce rien, il pointe — et son
   ouverture tourne de 180°. Sous `md` il est toujours visible, parce que la rangée se replie
-  réellement. À partir de `md` il s'efface au repos et revient au survol du sommaire comme au focus
-  dans le sommaire : les titres lisent comme des titres, et le contrôle n'est jamais sans indice
-  pour qui s'apprête à cliquer ou à tabuler. Sur bureau, le chevron suit son titre au lieu de filer au bord de la
+  réellement. À partir de `md`, et seulement sur un appareil qui connaît le survol, il s'efface au
+  repos et revient au survol du sommaire comme au focus dans le sommaire : les titres lisent comme
+  des titres, et le contrôle n'est jamais sans indice pour qui s'apprête à cliquer ou à tabuler. Sur
+  une tablette sans survol, il reste visible, sans quoi le pli n'aurait aucun indice. Sur bureau, le chevron suit son titre au lieu de filer au bord de la
   colonne — le bord touche déjà le titre suivant —, et le sommaire garde une cible de 25,5 px de haut
   pour que la disclosure reste atteignable au pointeur.
 
@@ -58,7 +60,8 @@ d'ADR-0064, ni sur le retrait du Logo, ni sur la règle de la destination unique
 - **Le rythme est mesuré, pas approché.** D'un texte au suivant : le titre et le premier lien sont à
   27 px l'un de l'autre, un lien tous les 25,5 px, la bande à 42 px sous le dernier lien, son filet à
   22 px et la rangée légale à 21 px. Le rendu du Pied de page a été mesuré aux mêmes repères
-  qu'apple.com à 1203 px : titre à 28 px du premier lien, liens tous les 25,5 px, bande à 41 px,
+  qu'apple.com à 1203 px — les repères d'apple.com viennent de la capture de référence fournie, et non
+  des clichés de la recherche, dont le §5.4 relève ses propres distances : titre à 28 px du premier lien, liens tous les 25,5 px, bande à 41 px,
   filet à 23 px, rangée légale à 23 px. Les couleurs sont aux valeurs de la recherche — encre
   d'annuaire `#424242` pour les liens, encre adoucie pour le copyright et la prose, `#0266cc` pour le
   téléphone.
@@ -83,7 +86,7 @@ d'ADR-0064, ni sur le retrait du Logo, ni sur la règle de la destination unique
   sont des paires et qu'empiler deux titres dans une colonne faisait lire le tiers droit comme un
   bloc. Une personne doit accepter cet écart.
 - **Deux écarts de plus avec apple.com sont voulus** : quatre colonnes au lieu de cinq, et le
-  conteneur partagé de 932 px au lieu des 980 px de contenu d'apple.com, que
+  conteneur partagé de 929 px de contenu (980 px moins deux fois `px-6`) au lieu des 980 px d'apple.com, que
   [`conteneur-boutique.ts`](../../lib/conteneur-boutique.ts) fixe pour toute la boutique. Le côté droit
   de la rangée légale reste vide : la boutique n'a qu'une langue, et un sélecteur qui ne peut rien
   changer serait un mensonge d'interface.

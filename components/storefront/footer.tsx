@@ -26,18 +26,20 @@ interface PiedDePage {
 
 const RECETTE_PETIT_TEXTE = "text-[12px] leading-[1.3334] tracking-[-0.01em]"
 
-const LIEN_ANNUAIRE =
+const LIEN_DE_PIED =
   "text-encre-annuaire hover:text-foreground hover:underline active:opacity-70 motion-safe:transition-[color,opacity]"
 
 const LIEN_DE_BANDE =
   "text-link underline decoration-1 underline-offset-2 hover:text-foreground active:opacity-70 motion-safe:transition-[color,opacity]"
 
-const GRILLE_DU_PIED: Readonly<Record<number, string>> = {
-  1: "md:grid-cols-1",
-  2: "md:grid-cols-2",
+const CIBLE_LEGALE = "inline-flex min-h-7 min-w-6 items-center"
+
+const GRILLE_DU_PIED: Readonly<Partial<Record<number, string>>> = {
   3: "md:grid-cols-3",
   4: "md:grid-cols-4",
 }
+
+const GRILLE_PAR_DEFAUT = "md:grid-cols-4"
 
 function contenuDuPiedDePage(structures: readonly NavCategory[]): PiedDePage {
   const catalogue: SectionDuPiedDePage = {
@@ -116,7 +118,7 @@ function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
         <svg
           aria-hidden="true"
           viewBox="0 0 16 16"
-          className="size-4 shrink-0 text-muted-foreground group-open:rotate-180 motion-safe:transition-[rotate,opacity] md:opacity-0 md:group-focus-within/sommaire:opacity-100 md:group-hover/sommaire:opacity-100"
+          className="size-4 shrink-0 text-muted-foreground group-open:rotate-180 motion-safe:transition-[rotate,opacity] md:group-focus-within/sommaire:opacity-100 md:group-hover/sommaire:opacity-100 md:[@media(hover:hover)]:opacity-0"
           fill="none"
         >
           <path
@@ -135,7 +137,7 @@ function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
               href={lien.href}
               className={cn(
                 "flex min-h-7 items-center md:min-h-6",
-                LIEN_ANNUAIRE
+                LIEN_DE_PIED
               )}
             >
               {lien.label}
@@ -166,7 +168,7 @@ export function StorefrontFooter({
             aria-label="Liens du pied de page"
             className={cn(
               "grid grid-cols-1",
-              GRILLE_DU_PIED[piedDePage.sections.length]
+              GRILLE_DU_PIED[piedDePage.sections.length] ?? GRILLE_PAR_DEFAUT
             )}
           >
             {piedDePage.sections.map((section) => (
@@ -202,10 +204,7 @@ export function StorefrontFooter({
                 href={licence!.href}
                 target="_blank"
                 rel="noreferrer"
-                className={cn(
-                  "inline-flex min-h-7 min-w-6 items-center",
-                  LIEN_ANNUAIRE
-                )}
+                className={cn(CIBLE_LEGALE, LIEN_DE_PIED)}
               >
                 {licence!.label}
               </a>
@@ -222,10 +221,7 @@ export function StorefrontFooter({
                   ) : null}
                   <Link
                     href={lien.href}
-                    className={cn(
-                      "inline-flex min-h-7 min-w-6 items-center",
-                      LIEN_ANNUAIRE
-                    )}
+                    className={cn(CIBLE_LEGALE, LIEN_DE_PIED)}
                   >
                     {lien.label}
                   </Link>

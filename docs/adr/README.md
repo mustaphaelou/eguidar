@@ -100,8 +100,8 @@ qu'elle ne tient pas et l'ADR qui l'a décidé (ADR-0058).
 | [0032](0032-le-retrait-au-doigt-a-ses-ressorts.md) | Le retrait au doigt a ses ressorts, sa décision se prend au point projeté | |
 | [0037](0037-le-bandeau-na-plus-quune-entree-vers-le-compte.md) | Le Bandeau n'a plus qu'une entrée vers le Compte, et c'est l'Aperçu du Panier | amendé par 0064 |
 | [0051](0051-le-bandeau-ne-porte-plus-les-pages-de-la-boutique.md) | Le Bandeau ne porte plus les pages de la boutique ; le pied de page les porte seul | |
-| [0064](0064-le-pied-de-page-porte-le-catalogue.md) | Le Pied de page porte le Catalogue ; le Bandeau ne gagne ni page ni contrôle du Compte | |
-| [0065](0065-le-pied-de-page-prend-l-anatomie-d-apple-com.md) | Le Pied de page prend l'anatomie d'apple.com : quatre colonnes égales, une bande sans icône, le chevron au seul mobile | |
+| [0064](0064-le-pied-de-page-porte-le-catalogue.md) | Le Pied de page porte le Catalogue ; le Bandeau ne gagne ni page ni contrôle du Compte | amendé par 0065 |
+| [0065](0065-le-pied-de-page-prend-l-anatomie-d-apple-com.md) | Le Pied de page prend l'anatomie d'apple.com : quatre colonnes égales, une bande sans icône, un chevron révélé au survol | |
 
 ### Données et schéma
 
