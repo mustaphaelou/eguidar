@@ -1150,8 +1150,7 @@ describe("recevoir un Retour", () => {
         },
       ]),
       {
-        sendOrderPlacedEmail,
-        sendOrderStatusEmail,
+        email: { sendOrderPlacedEmail, sendOrderStatusEmail },
       }
     )
 
@@ -1209,11 +1208,8 @@ describe("recevoir un Retour", () => {
         },
       ]),
       {
-        sendOrderPlacedEmail,
-        sendOrderStatusEmail,
-        reindexProducts,
-        revalidateCatalog,
-        purgeCatalogue,
+        email: { sendOrderPlacedEmail, sendOrderStatusEmail },
+        stock: { reindexProducts, revalidateCatalog, purgeCatalogue },
       }
     )
 

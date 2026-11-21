@@ -22,8 +22,13 @@ import {
 } from "@/lib/use-cases/devis"
 import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
 import {
+  écrireLeStock,
+  type EffetsStock,
+  exécuterStock,
   InvalidOrderTransitionError,
-  OutOfStockError,
+  reapprovisionner,
+  reserver,
+  verrouillerCommande,
 } from "@/lib/use-cases/commande"
 import {
   avecSurcharges,
@@ -37,6 +42,11 @@ import {
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 export type OrderEffects = EffetsCommande
+
+type SurchargesCommande = {
+  email?: Partial<OrderEffects>
+  stock?: Partial<EffetsStock>
+}
 
 export {
   InvalidOrderTransitionError,
@@ -222,7 +232,7 @@ const SELECT_ARGENT = {
   },
 } as const
 
-export function toOrderEmailSnapshot(
+function toOrderEmailSnapshot(
   order: OrderWithItems,
   userEmail: string
 ): OrderEmailSnapshot {
@@ -244,51 +254,6 @@ export function toOrderEmailSnapshot(
   }
 }
 
-async function reserverStock(
-  tx: Prisma.TransactionClient,
-  lines: {
-    variantId: string
-    quantity: number
-    productName: string
-    variantName: string
-    stock: number
-  }[]
-): Promise<void> {
-  for (const line of lines) {
-    const updated = await tx.productVariant.updateMany({
-      where: { id: line.variantId, stock: { gte: line.quantity } },
-      data: { stock: { decrement: line.quantity } },
-    })
-    if (updated.count === 0) {
-      const current = await tx.productVariant.findUnique({
-        where: { id: line.variantId },
-        select: { stock: true },
-      })
-      throw new OutOfStockError([
-        {
-          productName: line.productName,
-          variantName: line.variantName,
-          requested: line.quantity,
-          available: current?.stock ?? line.stock,
-        },
-      ])
-    }
-  }
-}
-
-async function réapprovisionnerArticles(
-  tx: Prisma.TransactionClient,
-  items: { variantId: string | null; quantity: number }[]
-): Promise<void> {
-  for (const item of items) {
-    if (!item.variantId) continue
-    await tx.productVariant.updateMany({
-      where: { id: item.variantId },
-      data: { stock: { increment: item.quantity } },
-    })
-  }
-}
-
 async function verrouillerPanierClient(
   tx: Prisma.TransactionClient,
   userId: string
@@ -304,9 +269,9 @@ async function verrouillerPanierClient(
 export async function placeOrder(
   userId: string,
   input: CheckoutInput,
-  overrides?: Partial<OrderEffects>
+  surcharges?: SurchargesCommande
 ) {
-  const effects = avecSurcharges(defaultOrderEffects, overrides)
+  const effects = avecSurcharges(defaultOrderEffects, surcharges?.email)
   const data = parseCheckoutInput(input)
 
   const user = await prisma.user.findUnique({
@@ -315,7 +280,7 @@ export async function placeOrder(
   })
   if (!user) throw new UserNotFoundError()
 
-  const { order, plan } = await prisma.$transaction(async (tx) => {
+  const { order, plan, ecriture } = await prisma.$transaction(async (tx) => {
     await verrouillerPanierClient(tx, userId)
     const cart = await lirePanierClient(userId, tx)
     if (cart.lines.length === 0) throw new EmptyCartError()
@@ -328,17 +293,10 @@ export async function placeOrder(
     if (montants.totalPayable !== data.totalAffiche)
       throw new DevisPériméError()
 
-    const outOfStock = cart.lines
-      .filter((line) => line.quantity > line.stock)
-      .map((line) => ({
-        productName: line.productName,
-        variantName: line.variantName,
-        requested: line.quantity,
-        available: line.stock,
-      }))
-    if (outOfStock.length > 0) throw new OutOfStockError(outOfStock)
-
-    await reserverStock(tx, cart.lines)
+    const ecriture = await écrireLeStock(
+      tx,
+      cart.lines.map((line) => reserver(line.variantId, line.quantity))
+    )
 
     const created = await tx.order.create({
       data: {
@@ -371,9 +329,10 @@ export async function placeOrder(
       snapshot: toOrderEmailSnapshot(created, user.email),
     })
     await enregistrerFaits(tx, plan.faits)
-    return { order: created, plan }
+    return { order: created, plan, ecriture }
   })
 
+  await exécuterStock(ecriture, surcharges?.stock ?? {})
   await executerCommande(plan, effects)
   return order
 }
@@ -431,46 +390,40 @@ export async function updateOrderStatus(
   orderId: string,
   nextStatus: OrderStatus,
   actorId: string,
-  overrides?: Partial<OrderEffects>
+  surcharges?: SurchargesCommande
 ) {
-  const effects = avecSurcharges(defaultOrderEffects, overrides)
+  const effects = avecSurcharges(defaultOrderEffects, surcharges?.email)
 
-  const existing = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { items: true, user: { select: { email: true } } },
-  })
-  if (!existing) throw new OrderNotFoundError()
-  if (!transitionsDisponibles(existing.status).includes(nextStatus)) {
-    throw new InvalidOrderTransitionError(existing.status, nextStatus)
-  }
-
-  const { updated, plan } = await prisma.$transaction(async (tx) => {
-    const fresh = await tx.order.findUnique({
+  const { updated, plan, ecriture } = await prisma.$transaction(async (tx) => {
+    if (!(await verrouillerCommande(tx, orderId))) {
+      throw new OrderNotFoundError()
+    }
+    const commande = await tx.order.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: { items: true, user: { select: { email: true } } },
     })
-    if (!fresh) throw new OrderNotFoundError()
-    if (!transitionsDisponibles(fresh.status).includes(nextStatus)) {
-      throw new InvalidOrderTransitionError(fresh.status, nextStatus)
+    if (!commande) throw new OrderNotFoundError()
+    if (!transitionsDisponibles(commande.status).includes(nextStatus)) {
+      throw new InvalidOrderTransitionError(commande.status, nextStatus)
     }
 
     const changedAt = new Date()
     const claimed = await tx.order.updateMany({
-      where: { id: orderId, status: fresh.status },
+      where: { id: orderId, status: commande.status },
       data:
         nextStatus === "delivered"
           ? { status: nextStatus, deliveredAt: changedAt }
           : { status: nextStatus },
     })
     if (claimed.count === 0) {
-      throw new InvalidOrderTransitionError(fresh.status, nextStatus)
+      throw new InvalidOrderTransitionError(commande.status, nextStatus)
     }
 
     if (nextStatus === "delivered") {
       await tx.payment.create({
         data: {
           orderId,
-          amount: fresh.totalPayable,
+          amount: commande.totalPayable,
           mode: "cash_on_delivery",
           collectedAt: changedAt,
           recordedById: actorId,
@@ -481,16 +434,20 @@ export async function updateOrderStatus(
     await tx.orderStatusChange.create({
       data: {
         orderId,
-        fromStatus: fresh.status,
+        fromStatus: commande.status,
         toStatus: nextStatus,
         changedAt,
         actorId,
       },
     })
 
-    if (nextStatus === "cancelled") {
-      await réapprovisionnerArticles(tx, fresh.items)
-    }
+    const mouvements =
+      nextStatus === "cancelled"
+        ? commande.items
+            .filter((item) => item.variantId)
+            .map((item) => reapprovisionner(item.variantId!, item.quantity))
+        : []
+    const ecriture = await écrireLeStock(tx, mouvements)
 
     const updated = await tx.order.findUniqueOrThrow({
       where: { id: orderId },
@@ -498,13 +455,14 @@ export async function updateOrderStatus(
     })
     const plan = declarerApresEcriture("commande.statut.changee", {
       commandeId: orderId,
-      snapshot: toOrderEmailSnapshot(updated, existing.user.email),
+      snapshot: toOrderEmailSnapshot(updated, commande.user.email),
       statut: nextStatus,
     })
     await enregistrerFaits(tx, plan.faits)
-    return { updated, plan }
+    return { updated, plan, ecriture }
   })
 
+  await exécuterStock(ecriture, surcharges?.stock ?? {})
   await executerCommande(plan, effects)
   return updated
 }

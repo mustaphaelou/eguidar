@@ -72,6 +72,7 @@ import {
   messageDeValidation,
 } from "@/lib/use-cases/mutation-squelette"
 import { declarerApresEcriture } from "@/lib/apres-ecriture"
+import { écrireLeStock, exécuterStock, fixer } from "@/lib/use-cases/commande"
 import {
   executer as executerCatalogue,
   type DocumentCatalogue,
@@ -1169,53 +1170,20 @@ export async function updateVariantStock(
     throw new CatalogValidationError(["le stock doit être positif ou nul"])
   }
 
-  const variant = await prisma.productVariant.findUnique({
+  const variante = await prisma.productVariant.findUnique({
     where: { id: variantId },
-    include: { product: { include: { category: true, variants: true } } },
+    select: { productId: true },
   })
-  if (!variant) throw new VariantNotFoundError()
+  if (!variante) throw new VariantNotFoundError()
 
-  const effects = avecSurcharges(
-    defaultCatalogEffects(variant.product.id),
-    overrides
+  const ecriture = await prisma.$transaction((tx) =>
+    écrireLeStock(tx, [fixer(variantId, stock)])
   )
-  const product = {
-    ...variant.product,
-    variants: variant.product.variants.map((v) =>
-      v.id === variantId ? { ...v, stock } : v
-    ),
-  }
-  const plan = await prisma.$transaction(async (tx) => {
-    await tx.productVariant.update({
-      where: { id: variantId },
-      data: { stock },
-    })
-    const plan = declarerApresEcriture("variante.stock.changee", {
-      produitId: variant.product.id,
-      slug: variant.product.slug,
-      categoryId: variant.product.categoryId,
-    })
-    await enregistrerFaits(tx, plan.faits)
-    return plan
+  await exécuterStock(ecriture, overrides ?? {})
+  return prisma.product.findUniqueOrThrow({
+    where: { id: variante.productId },
+    include: { category: true, variants: true },
   })
-  let documentsLus: Promise<readonly DocumentCatalogue[]> | undefined
-  const documents = () =>
-    (documentsLus ??= (async () => [
-      {
-        indexable: toIndexableProduct(product),
-        evenement: {
-          id: product.id,
-          slug: product.slug,
-          ...(await chainesDuProduit(product.categoryId)),
-        },
-      },
-    ])())
-  await executerCatalogue(plan, effects, {
-    documents,
-    evenements: async () =>
-      (await documents()).map(({ evenement }) => evenement),
-  })
-  return product
 }
 
 export interface FaitsProduitListe {

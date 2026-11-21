@@ -19,6 +19,7 @@ import {
   type MotifRetour,
   type QuantiteCommandee,
 } from "@/lib/retours"
+import type { OrderEmailSnapshot } from "@/lib/emails"
 import { peutTransitionner } from "@/lib/statut-de-commande"
 import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
 import {
@@ -34,15 +35,47 @@ import {
   avecSurcharges,
   messageDeValidation,
 } from "@/lib/use-cases/mutation-squelette"
-import {
-  defaultOrderEffects,
-  toOrderEmailSnapshot,
-  type OrderEffects,
-} from "@/lib/use-cases/orders"
+import { defaultOrderEffects, type OrderEffects } from "@/lib/use-cases/orders"
 import { uniqueViolationIndex } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const INDEX_DEMANDE_OUVERTE = "Return_orderId_ouvert_key"
+
+function toOrderEmailSnapshot(
+  commande: {
+    id: string
+    cityName: string
+    address: string
+    phone: string
+    total: number
+    shippingFee: number
+    totalPayable: number
+    items: {
+      productName: string
+      variantName: string
+      price: number
+      quantity: number
+    }[]
+  },
+  userEmail: string
+): OrderEmailSnapshot {
+  return {
+    userEmail,
+    orderId: commande.id,
+    items: commande.items.map((article) => ({
+      productName: article.productName,
+      variantName: article.variantName,
+      price: article.price,
+      quantity: article.quantity,
+    })),
+    total: commande.total,
+    shippingFee: commande.shippingFee,
+    totalPayable: commande.totalPayable,
+    cityName: commande.cityName,
+    address: commande.address,
+    phone: commande.phone,
+  }
+}
 
 export interface LigneDeclaree {
   orderItemId: string
@@ -446,10 +479,10 @@ export async function refuserRetour(input: RefusDeRetour): Promise<RetourCree> {
 
 export async function recevoirRetour(
   input: ReceptionDeRetour,
-  surcharges?: Partial<OrderEffects & EffetsStock>
+  surcharges?: { email?: Partial<OrderEffects>; stock?: Partial<EffetsStock> }
 ): Promise<RetourRecu> {
   const reception = parseReception(input)
-  const effects = avecSurcharges(defaultOrderEffects, surcharges)
+  const effects = avecSurcharges(defaultOrderEffects, surcharges?.email)
 
   const { recu, plan, ecriture } = await prisma.$transaction(async (tx) => {
     const cible = await tx.return.findUnique({
@@ -610,7 +643,7 @@ export async function recevoirRetour(
     }
   })
 
-  await exécuterStock(ecriture, surcharges ?? {})
+  await exécuterStock(ecriture, surcharges?.stock ?? {})
   if (plan) await executerCommande(plan, effects)
   return recu
 }
