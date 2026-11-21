@@ -149,7 +149,7 @@ La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche et
 _Avoid_: header, navbar, barre de navigation, barre du haut
 
 **Pied de page**:
-La surface en bas des pages de la boutique qui porte son annuaire : quatre sections — « La boutique », « Mon compte », « Aide » et « La maison » — déclarées comme données et rendues comme des disclosures natives ouvertes dès le HTML serveur, sans composant client. Le tout est un repère `contentinfo` nommé, ses colonnes un repère de navigation au libellé français, et chaque destination n'y figure qu'une fois. La rangée légale, déclarée à part, ne porte que le copyright, la licence MIT, Conditions & livraison et Suppression des données.
+La surface en bas des pages de la boutique qui porte son annuaire : quatre sections — « La boutique », « Mon compte », « Aide » et « La maison » — déclarées comme données, rendues comme des disclosures natives ouvertes dès le HTML serveur, sans composant client, et réparties en colonnes égales sur les écrans larges. Le tout est un repère `contentinfo` nommé, ses colonnes un repère de navigation au libellé français, et chaque destination n'y figure qu'une fois. Au-dessus de la rangée légale, la bande d'assurance porte dans la recette du petit texte la tagline, le paiement à la livraison et la TVA, les frais de livraison, et le téléphone en lien `tel:`. La rangée légale, déclarée à part, ne porte que le copyright, la licence MIT, Conditions & livraison et Suppression des données.
 _Avoid_: footer, bas de page, pied, annuaire (comme nom du concept)
 
 **Voile dépoli**:
