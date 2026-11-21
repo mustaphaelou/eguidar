@@ -16,10 +16,8 @@ interface SectionDuPiedDePage {
   readonly liens: readonly LienDuPiedDePage[]
 }
 
-type ColonneDuPiedDePage = readonly SectionDuPiedDePage[]
-
 interface PiedDePage {
-  readonly colonnes: readonly ColonneDuPiedDePage[]
+  readonly sections: readonly SectionDuPiedDePage[]
   readonly mentions: {
     readonly copyright: string
     readonly liens: readonly LienDuPiedDePage[]
@@ -28,8 +26,18 @@ interface PiedDePage {
 
 const RECETTE_PETIT_TEXTE = "text-[12px] leading-[1.3334] tracking-[-0.01em]"
 
-const RETOURS_DU_LIEN =
-  "hover:text-foreground hover:underline active:opacity-70 motion-safe:transition-[color,opacity]"
+const LIEN_ANNUAIRE =
+  "text-encre-annuaire hover:text-foreground hover:underline active:opacity-70 motion-safe:transition-[color,opacity]"
+
+const LIEN_DE_BANDE =
+  "text-link underline decoration-1 underline-offset-2 hover:text-foreground active:opacity-70 motion-safe:transition-[color,opacity]"
+
+const GRILLE_DU_PIED: Readonly<Record<number, string>> = {
+  1: "md:grid-cols-1",
+  2: "md:grid-cols-2",
+  3: "md:grid-cols-3",
+  4: "md:grid-cols-4",
+}
 
 function contenuDuPiedDePage(structures: readonly NavCategory[]): PiedDePage {
   const catalogue: SectionDuPiedDePage = {
@@ -75,12 +83,10 @@ function contenuDuPiedDePage(structures: readonly NavCategory[]): PiedDePage {
     ],
   }
 
-  const colonnes = [[catalogue], [compte], [aide], [maison]]
-    .map((sections) => sections.filter((section) => section.liens.length > 0))
-    .filter((sections) => sections.length > 0)
-
   return {
-    colonnes,
+    sections: [catalogue, compte, aide, maison].filter(
+      (section) => section.liens.length > 0
+    ),
     mentions: {
       copyright: `© ${site.name} — Le code est sous`,
       liens: [
@@ -98,11 +104,11 @@ function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
       open
       data-slot="section-pied-de-page"
       data-section={section.id}
-      className="group"
+      className="group border-b border-hairline pb-2 last:border-b-0 md:border-b-0 md:pb-0"
     >
       <summary
         className={cn(
-          "flex cursor-pointer list-none items-center justify-between gap-4 py-2.5 font-semibold text-foreground md:py-1 [&::-webkit-details-marker]:hidden",
+          "group/sommaire flex cursor-pointer list-none items-center justify-between gap-4 py-2.5 font-semibold text-foreground md:justify-start md:gap-1.5 md:py-1 [&::-webkit-details-marker]:hidden",
           RECETTE_PETIT_TEXTE
         )}
       >
@@ -110,7 +116,7 @@ function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
         <svg
           aria-hidden="true"
           viewBox="0 0 16 16"
-          className="size-4 shrink-0 text-muted-foreground group-open:rotate-180 motion-safe:transition-transform md:hidden"
+          className="size-4 shrink-0 text-muted-foreground group-open:rotate-180 motion-safe:transition-[rotate,opacity] md:opacity-0 md:group-focus-within/sommaire:opacity-100 md:group-hover/sommaire:opacity-100"
           fill="none"
         >
           <path
@@ -128,8 +134,8 @@ function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
             <Link
               href={lien.href}
               className={cn(
-                "flex min-h-7 items-center text-encre-annuaire md:min-h-6",
-                RETOURS_DU_LIEN
+                "flex min-h-7 items-center md:min-h-6",
+                LIEN_ANNUAIRE
               )}
             >
               {lien.label}
@@ -158,17 +164,13 @@ export function StorefrontFooter({
         <div className="border-t border-hairline pt-4 pb-4">
           <nav
             aria-label="Liens du pied de page"
-            className="grid grid-cols-1 md:grid-cols-4"
+            className={cn(
+              "grid grid-cols-1",
+              GRILLE_DU_PIED[piedDePage.sections.length]
+            )}
           >
-            {piedDePage.colonnes.map((colonne) => (
-              <div
-                key={colonne[0]!.id}
-                className="flex flex-col border-b border-hairline pb-2 last:border-b-0 md:border-b-0 md:pb-0"
-              >
-                {colonne.map((section) => (
-                  <SectionDuPiedDePage key={section.id} section={section} />
-                ))}
-              </div>
+            {piedDePage.sections.map((section) => (
+              <SectionDuPiedDePage key={section.id} section={section} />
             ))}
           </nav>
 
@@ -180,7 +182,7 @@ export function StorefrontFooter({
             {assurancePiedDePage.livraison} {assurancePiedDePage.telephone}{" "}
             <a
               href={`tel:+${site.contactPhoneDigits}`}
-              className="text-link underline decoration-1 underline-offset-2 hover:text-foreground"
+              className={LIEN_DE_BANDE}
             >
               {site.contactPhone}
             </a>
@@ -201,8 +203,8 @@ export function StorefrontFooter({
                 target="_blank"
                 rel="noreferrer"
                 className={cn(
-                  "inline-flex min-h-7 min-w-6 items-center text-encre-annuaire",
-                  RETOURS_DU_LIEN
+                  "inline-flex min-h-7 min-w-6 items-center",
+                  LIEN_ANNUAIRE
                 )}
               >
                 {licence!.label}
@@ -221,8 +223,8 @@ export function StorefrontFooter({
                   <Link
                     href={lien.href}
                     className={cn(
-                      "inline-flex min-h-7 min-w-6 items-center text-encre-annuaire",
-                      RETOURS_DU_LIEN
+                      "inline-flex min-h-7 min-w-6 items-center",
+                      LIEN_ANNUAIRE
                     )}
                   >
                     {lien.label}
