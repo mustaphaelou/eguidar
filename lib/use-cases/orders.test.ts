@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
 
+import { revalidatePath } from "next/cache"
 import {
   afterAll,
   beforeAll,
@@ -24,8 +25,12 @@ import {
 } from "@/lib/use-cases/devis"
 import { enregistrerRemboursement } from "@/lib/use-cases/remboursements"
 import { DeliveryCityNotFoundError } from "@/lib/use-cases/livraison-prix"
-import type { OrderEmailSnapshot } from "@/lib/emails"
+import {
+  sendOrderStatusEmail as sendOrderStatusEmailReel,
+  type OrderEmailSnapshot,
+} from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
+import type { EffetsStock } from "@/lib/use-cases/commande"
 import {
   CheckoutValidationError,
   DevisPériméError,
@@ -46,6 +51,14 @@ import {
 vi.mock("@/lib/use-cases/session-courante", async () => {
   const h = await import("@/test/navigation-mocks")
   return { lireSession: h.sessionCouranteMock }
+})
+
+vi.mock("@/lib/emails", async (importOriginal) => {
+  const reelles = await importOriginal<typeof import("@/lib/emails")>()
+  return {
+    ...reelles,
+    sendOrderStatusEmail: vi.fn(reelles.sendOrderStatusEmail),
+  }
 })
 
 const runId = randomUUID().slice(0, 8)
@@ -385,8 +398,10 @@ describe("order placement", () => {
     await ajouterArticleAuPanier(variantP4, 1)
 
     const order = await placeOrder(userIdA, await checkoutInput(userIdA), {
-      sendOrderPlacedEmail,
-      sendOrderStatusEmail,
+      email: {
+        sendOrderPlacedEmail,
+        sendOrderStatusEmail,
+      },
     })
 
     expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
@@ -416,7 +431,9 @@ describe("order placement", () => {
       "e-mail de confirmation",
       async (effetQuiEchoue) =>
         placeOrder(userIdA, await checkoutInput(userIdA), {
-          sendOrderPlacedEmail: effetQuiEchoue,
+          email: {
+            sendOrderPlacedEmail: effetQuiEchoue,
+          },
         })
     )
 
@@ -489,8 +506,10 @@ describe("order placement", () => {
     let refus: unknown
     try {
       await placeOrder(userIdA, input, {
-        sendOrderPlacedEmail,
-        sendOrderStatusEmail,
+        email: {
+          sendOrderPlacedEmail,
+          sendOrderStatusEmail,
+        },
       })
     } catch (error) {
       refus = error
@@ -550,7 +569,7 @@ describe("order placement", () => {
             where: { id: cityId },
             data: { fee: 9000 },
           }),
-        () => placeOrder(userIdA, input, { sendOrderPlacedEmail })
+        () => placeOrder(userIdA, input, { email: { sendOrderPlacedEmail } })
       )
     ).rejects.toBeInstanceOf(DevisPériméError)
 
@@ -647,7 +666,7 @@ describe("order placement", () => {
     expect(orderCount).toBe(0)
   })
 
-  it("le checkout déclare un Fait de stock par Produit vidé", async () => {
+  it("le passage de commande déclare un Fait de stock par Produit vidé", async () => {
     const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
       async () => {}
     )
@@ -666,7 +685,9 @@ describe("order placement", () => {
     await ajouterArticleAuPanier(variantP4, 1)
 
     await placeOrder(userIdA, await checkoutInput(userIdA), {
-      sendOrderPlacedEmail,
+      email: {
+        sendOrderPlacedEmail,
+      },
     })
 
     const faits = await prisma.automationEvent.findMany({
@@ -688,6 +709,22 @@ describe("order placement", () => {
         })
       )
     }
+  })
+
+  it("le passage de commande garde les portes de catalogue réelles quand l'e-mail est surchargé", async () => {
+    const sendOrderPlacedEmail = vi.fn<OrderEffects["sendOrderPlacedEmail"]>(
+      async () => {}
+    )
+    vi.mocked(revalidatePath).mockClear()
+    commeClient(userIdA)
+    await ajouterArticleAuPanier(variantP4, 1)
+
+    await placeOrder(userIdA, await checkoutInput(userIdA), {
+      email: { sendOrderPlacedEmail },
+    })
+
+    expect(sendOrderPlacedEmail).toHaveBeenCalledOnce()
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/produits")
   })
 
   it("regroupe en un seul refus les Produits du Panier en rupture de stock", async () => {
@@ -739,10 +776,14 @@ describe("order placement", () => {
 
     const [first, second] = await Promise.allSettled([
       placeOrder(userIdB, await checkoutInput(userIdB), {
-        sendOrderPlacedEmail,
+        email: {
+          sendOrderPlacedEmail,
+        },
       }),
       placeOrder(userIdC, await checkoutInput(userIdC), {
-        sendOrderPlacedEmail,
+        email: {
+          sendOrderPlacedEmail,
+        },
       }),
     ])
 
@@ -784,8 +825,12 @@ describe("order placement", () => {
           ),
         `%FROM "CartItem"%FOR UPDATE%`
       )
-      const premiere = placeOrder(userIdA, input, { sendOrderPlacedEmail })
-      const seconde = placeOrder(userIdA, input, { sendOrderPlacedEmail })
+      const premiere = placeOrder(userIdA, input, {
+        email: { sendOrderPlacedEmail },
+      })
+      const seconde = placeOrder(userIdA, input, {
+        email: { sendOrderPlacedEmail },
+      })
       const resultats = Promise.allSettled([premiere, seconde])
       try {
         await verrou.attendreBloques(2)
@@ -845,8 +890,12 @@ describe("order placement", () => {
           ),
         `%UPDATE%ProductVariant%`
       )
-      const premiere = placeOrder(userIdA, inputA, { sendOrderPlacedEmail })
-      const seconde = placeOrder(userIdB, inputB, { sendOrderPlacedEmail })
+      const premiere = placeOrder(userIdA, inputA, {
+        email: { sendOrderPlacedEmail },
+      })
+      const seconde = placeOrder(userIdB, inputB, {
+        email: { sendOrderPlacedEmail },
+      })
       const resultats = Promise.allSettled([premiere, seconde])
       try {
         await verrou.attendreBloques(2)
@@ -908,21 +957,19 @@ describe("order placement", () => {
     commeClient(userIdA)
     await ajouterArticleAuPanier(variantP4, 1)
     await verifierRefusValidation(CheckoutValidationError, async () =>
-      placeOrder(
-        userIdA,
-        await checkoutInput(userIdA, { address: "X" }),
-        effects
-      )
+      placeOrder(userIdA, await checkoutInput(userIdA, { address: "X" }), {
+        email: effects,
+      })
     )
     await verifierRefusValidation(CheckoutValidationError, async () =>
-      placeOrder(
-        userIdA,
-        await checkoutInput(userIdA, { phone: "123" }),
-        effects
-      )
+      placeOrder(userIdA, await checkoutInput(userIdA, { phone: "123" }), {
+        email: effects,
+      })
     )
     await verifierRefusValidation(CheckoutValidationError, async () =>
-      placeOrder(userIdA, await checkoutInput(userIdA, { cityId: "" }), effects)
+      placeOrder(userIdA, await checkoutInput(userIdA, { cityId: "" }), {
+        email: effects,
+      })
     )
 
     expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
@@ -1007,9 +1054,9 @@ describe("order status transitions", () => {
       sendOrderPlacedEmail,
       sendOrderStatusEmail,
     }
-    await updateOrderStatus(order.id, "confirmed", acteurId, effects)
-    await updateOrderStatus(order.id, "shipped", acteurId, effects)
-    await updateOrderStatus(order.id, "delivered", acteurId, effects)
+    await updateOrderStatus(order.id, "confirmed", acteurId, { email: effects })
+    await updateOrderStatus(order.id, "shipped", acteurId, { email: effects })
+    await updateOrderStatus(order.id, "delivered", acteurId, { email: effects })
 
     expect(statuts).toEqual(["confirmed", "shipped", "delivered"])
     expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
@@ -1038,7 +1085,9 @@ describe("order status transitions", () => {
     )
 
     await updateOrderStatus(orderId, "confirmed", acteurId, {
-      sendOrderStatusEmail,
+      email: {
+        sendOrderStatusEmail,
+      },
     })
 
     expect(sendOrderStatusEmail).toHaveBeenCalledOnce()
@@ -1062,7 +1111,9 @@ describe("order status transitions", () => {
     ).toBe(0)
 
     await updateOrderStatus(orderId, "cancelled", acteurId, {
-      sendOrderStatusEmail,
+      email: {
+        sendOrderStatusEmail,
+      },
     })
 
     const order = await getOrder(userIdA, orderId)
@@ -1075,6 +1126,30 @@ describe("order status transitions", () => {
       ).stock
     ).toBe(2)
     expect(sendOrderStatusEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId }),
+      "cancelled"
+    )
+  })
+
+  it("l'Annulation garde la porte d'e-mail réelle quand les portes de catalogue sont surchargées", async () => {
+    const reindexProducts = vi.fn<EffetsStock["reindexProducts"]>(
+      async () => {}
+    )
+    const revalidateCatalog = vi.fn<EffetsStock["revalidateCatalog"]>()
+    const purgeCatalogue = vi.fn<EffetsStock["purgeCatalogue"]>()
+    vi.mocked(sendOrderStatusEmailReel).mockClear()
+    const orderId = await placeSmallOrder(userIdA)
+
+    await updateOrderStatus(orderId, "cancelled", acteurId, {
+      stock: { reindexProducts, revalidateCatalog, purgeCatalogue },
+    })
+
+    expect(reindexProducts).toHaveBeenCalledWith([
+      expect.objectContaining({ totalStock: 2 }),
+    ])
+    expect(revalidateCatalog).toHaveBeenCalledOnce()
+    expect(purgeCatalogue).toHaveBeenCalledOnce()
+    expect(sendOrderStatusEmailReel).toHaveBeenCalledWith(
       expect.objectContaining({ orderId }),
       "cancelled"
     )
@@ -1162,7 +1237,9 @@ describe("order status transitions", () => {
         `%FROM "Order" WHERE id = $1 FOR UPDATE%`
       )
       const changement = updateOrderStatus(orderId, "confirmed", acteurId, {
-        sendOrderStatusEmail,
+        email: {
+          sendOrderStatusEmail,
+        },
       })
       try {
         await verrou.attendreBloques(1)
@@ -1183,7 +1260,9 @@ describe("order status transitions", () => {
       "e-mail de statut",
       (effetQuiEchoue) =>
         updateOrderStatus(orderId, "confirmed", acteurId, {
-          sendOrderStatusEmail: effetQuiEchoue,
+          email: {
+            sendOrderStatusEmail: effetQuiEchoue,
+          },
         })
     )
 
@@ -1230,12 +1309,16 @@ describe("order status transitions", () => {
     )
     await expect(
       updateOrderStatus(orderId, "cancelled", acteurId, {
-        sendOrderStatusEmail,
+        email: {
+          sendOrderStatusEmail,
+        },
       })
     ).rejects.toThrow(InvalidOrderTransitionError)
     await expect(
       updateOrderStatus(orderId, "confirmed", acteurId, {
-        sendOrderStatusEmail,
+        email: {
+          sendOrderStatusEmail,
+        },
       })
     ).rejects.toThrow(InvalidOrderTransitionError)
 
@@ -1255,12 +1338,16 @@ describe("order status transitions", () => {
     )
     const orderId = await placeSmallOrder(userIdA)
     await updateOrderStatus(orderId, "cancelled", acteurId, {
-      sendOrderStatusEmail,
+      email: {
+        sendOrderStatusEmail,
+      },
     })
 
     await expect(
       updateOrderStatus(orderId, "cancelled", acteurId, {
-        sendOrderStatusEmail,
+        email: {
+          sendOrderStatusEmail,
+        },
       })
     ).rejects.toThrow(InvalidOrderTransitionError)
 
@@ -1282,10 +1369,14 @@ describe("order status transitions", () => {
 
     const [first, second] = await Promise.allSettled([
       updateOrderStatus(orderId, "cancelled", acteurId, {
-        sendOrderStatusEmail,
+        email: {
+          sendOrderStatusEmail,
+        },
       }),
       updateOrderStatus(orderId, "cancelled", acteurId, {
-        sendOrderStatusEmail,
+        email: {
+          sendOrderStatusEmail,
+        },
       }),
     ])
 
@@ -1620,13 +1711,19 @@ describe("admin lifecycle", () => {
     const order = await placeOrder(userIdA, await checkoutInput(userIdA))
 
     await updateOrderStatus(order.id, "confirmed", acteurId, {
-      sendOrderStatusEmail,
+      email: {
+        sendOrderStatusEmail,
+      },
     })
     await updateOrderStatus(order.id, "shipped", acteurId, {
-      sendOrderStatusEmail,
+      email: {
+        sendOrderStatusEmail,
+      },
     })
     await updateOrderStatus(order.id, "delivered", acteurId, {
-      sendOrderStatusEmail,
+      email: {
+        sendOrderStatusEmail,
+      },
     })
 
     expect(sendOrderStatusEmail).toHaveBeenCalledTimes(3)
