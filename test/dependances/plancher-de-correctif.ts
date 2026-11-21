@@ -175,6 +175,15 @@ export const PLANCHERS_INSTALLES: readonly PlancherInstalle[] = [
     famille: ["@better-auth/core", "@better-auth/prisma-adapter"],
   },
   {
+    paquet: "effect",
+    plancher: "3.22.1",
+    avis: ["GHSA-7589-6fvf-x4pw"],
+    raison:
+      "3.22.1 remplace la regex ambiguë des TemplateLiteral à deux segments `Schema.String` par une analyse linéaire",
+    plage: { section: "overrides" },
+    absence: "passe",
+  },
+  {
     paquet: "fast-uri",
     plancher: "3.1.8",
     avis: ["GHSA-hrr3-gc8f-f4qj"],

@@ -161,6 +161,7 @@ describe("l'absence d'un paquet installé", () => {
   )
 
   it.each([
+    "effect",
     "fast-uri",
     "hono",
     "ip-address",
