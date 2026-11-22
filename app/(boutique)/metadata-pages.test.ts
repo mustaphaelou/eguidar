@@ -17,7 +17,12 @@ import { generateMetadata as metadonneeRecherche } from "./recherche/page"
 import { metadata as metadonneeProduits } from "./produits/page"
 
 function expectSansPromesse(metadonnee: Metadata): void {
-  const texte = `${String(metadonnee.description ?? "")} ${String(metadonnee.openGraph?.description ?? "")}`
+  const texte = [
+    String(metadonnee.title ?? ""),
+    String(metadonnee.description ?? ""),
+    String(metadonnee.openGraph?.title ?? ""),
+    String(metadonnee.openGraph?.description ?? ""),
+  ].join(" ")
 
   expect(texte.trim().length).toBeGreaterThan(0)
   expect(texte).not.toMatch(/TVA/i)
