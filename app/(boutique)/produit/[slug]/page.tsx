@@ -12,7 +12,6 @@ import {
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
 import {
-  descriptionAffichee,
   specificationsAffichees,
   type FaitsDeFicheProduit,
 } from "@/lib/fiche-produit"
@@ -69,7 +68,7 @@ async function ProductContent({
     ...data,
     categoryName: data.category?.name ?? null,
   }
-  const description = descriptionAffichee(faits)
+  const description = data.description.trim()
   const specEntries = specificationsAffichees(faits)
   const crumbs = [
     { name: "Accueil", href: "/" },
@@ -131,14 +130,16 @@ async function ProductContent({
         </div>
       </div>
 
-      <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
-        <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
-          Description
-        </h2>
-        <p className="mt-4 max-w-[70ch] text-body leading-body tracking-[-0.022em] whitespace-pre-line text-muted-foreground">
-          {description}
-        </p>
-      </section>
+      {description.length > 0 ? (
+        <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
+          <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
+            Description
+          </h2>
+          <p className="mt-4 max-w-[70ch] text-body leading-body tracking-[-0.022em] whitespace-pre-line text-muted-foreground">
+            {description}
+          </p>
+        </section>
+      ) : null}
 
       <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
         <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">

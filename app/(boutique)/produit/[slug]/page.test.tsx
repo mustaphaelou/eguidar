@@ -43,6 +43,8 @@ import ProduitPage, { generateMetadata } from "./page"
 
 const PRIX_DES_VARIANTES = 3_688_790
 const PRIX_DES_VARIANTES_AFFICHE = "36.887,90\u00a0MAD"
+const DESCRIPTION_ECRITE =
+  "Une description écrite par la maison.\nUn second paragraphe conservé."
 
 function ficheDuProduit(
   surcharges: Partial<ProductDetailData> = {}
@@ -99,25 +101,41 @@ function ligneDeSpecification(html: string, etiquette: string): string {
   return html.match(motif)?.[1] ?? ""
 }
 
+function donneesStructureesDuProduit(html: string): string {
+  return (
+    html.match(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/
+    )?.[1] ?? ""
+  )
+}
+
 describe("la fiche Produit", () => {
   beforeEach(() => {
     getProductPageDataMock.mockReset()
   })
 
-  it("rend la Description et les Caractéristiques d'un Produit sans texte ni spécifications", async () => {
-    const html = await rendre()
+  it("rend la Description écrite et les Caractéristiques d'un Produit", async () => {
+    const html = await rendre(
+      ficheDuProduit({ description: DESCRIPTION_ECRITE })
+    )
 
     expect(html).toMatch(/>Description</)
     expect(html).toMatch(/>Caractéristiques</)
-    expect(html).toContain(
-      "iPhone 18 Pro Max (Apple) est un produit de notre rayon Smartphones."
-    )
-    expect(html).toContain(
-      "Il est disponible en 2 déclinaisons : 256 Go et 512 Go."
-    )
-    expect(html).toContain("Son prix commence à 36.887,90")
-    expect(html).toContain("Il est disponible dès maintenant.")
-    expect(html).toContain("La livraison est offerte, paiement à la livraison.")
+    expect(html).toContain(DESCRIPTION_ECRITE)
+    expect(html).not.toContain("est un produit de notre rayon")
+    expect(html).not.toContain("Il est disponible en 2 déclinaisons")
+    expect(html).not.toContain("Son prix commence à")
+    expect(html).not.toContain("actuellement en rupture de stock")
+    expect(html).not.toContain("La livraison est offerte")
+  })
+
+  it("ne rend pas la section Description d'un Produit sans texte, mais garde les Caractéristiques", async () => {
+    const html = await rendre()
+
+    expect(html).not.toMatch(/>Description</)
+    expect(html).toMatch(/>Caractéristiques</)
+    expect(ligneDeSpecification(html, "Marque")).toBe("Apple")
+    expect(html).not.toContain("est un produit de notre rayon")
   })
 
   it("remplit les Caractéristiques avec les faits de base du Produit", async () => {
@@ -130,7 +148,7 @@ describe("la fiche Produit", () => {
     expect(ligneDeSpecification(html, "Livraison")).toBe("Offerte")
   })
 
-  it("garde le texte et les spécifications écrits devant les faits de repli", async () => {
+  it("garde la Description écrite et les spécifications du Catalogue", async () => {
     const html = await rendre(
       ficheDuProduit({
         description: "Une vraie description du Produit.",
@@ -169,8 +187,7 @@ describe("la fiche Produit", () => {
     )
 
     expect(html).toContain("Produit indisponible")
-    expect(html).toContain("Rupture de stock")
-    expect(html).toContain("Il est actuellement en rupture de stock.")
+    expect(ligneDeSpecification(html, "Disponibilité")).toBe("Rupture de stock")
   })
 
   it("cite la Description du Produit dans la métadonnée et l'aperçu de partage", async () => {
@@ -244,13 +261,22 @@ describe("la fiche Produit", () => {
     expect(metadonnee.openGraph?.description).toBeUndefined()
   })
 
-  it("sert les Données structurées avec la description de repli et le prix des Variantes", async () => {
+  it("sert les Données structurées avec la Description écrite et le prix des Variantes", async () => {
+    const html = await rendre(
+      ficheDuProduit({ description: "Une description écrite pour la fiche." })
+    )
+
+    const jsonLd = donneesStructureesDuProduit(html)
+    expect(jsonLd).toContain(
+      '"description":"Une description écrite pour la fiche."'
+    )
+    expect(jsonLd).toContain('"price":36887.9')
+    expect(jsonLd).not.toContain('"price":17999.9')
+  })
+
+  it("omet la description des Données structurées quand la Description est vide", async () => {
     const html = await rendre()
 
-    expect(html).toContain(
-      '"description":"iPhone 18 Pro Max (Apple) est un produit de notre rayon Smartphones.'
-    )
-    expect(html).toContain('"price":36887.9')
-    expect(html).not.toContain('"price":17999.9')
+    expect(donneesStructureesDuProduit(html)).not.toContain('"description"')
   })
 })
