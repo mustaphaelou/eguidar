@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils"
 export const metadata = pageMetadata({
   title: "Électronique au meilleur prix au Maroc",
   description:
-    "Smartphones, ordinateurs, TV, gaming et accessoires au meilleur prix au Maroc. Prix en MAD, TVA 20% incluse, paiement à la livraison partout au Maroc.",
+    "Smartphones, ordinateurs, TV, gaming et accessoires : catalogue d'électronique au Maroc.",
   path: "/",
 })
 

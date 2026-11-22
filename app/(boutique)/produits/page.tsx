@@ -11,7 +11,7 @@ import { searchProducts } from "@/lib/use-cases/search"
 export const metadata = pageMetadata({
   title: "Catalogue",
   description:
-    "Tous nos produits : smartphones, ordinateurs, TV, gaming et accessoires. Prix en MAD, TVA 20% incluse, paiement à la livraison partout au Maroc.",
+    "Tous nos produits : smartphones, ordinateurs, TV, gaming et accessoires.",
   path: "/produits",
 })
 

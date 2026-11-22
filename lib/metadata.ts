@@ -9,9 +9,22 @@ export const defaultShareImage = {
   alt: `${site.legalName} — ${site.tagline}`,
 } as const
 
+const LONGUEUR_EXTRAIT = 155
+
+export function extraitDescription(description: string): string | undefined {
+  const texte = description.replace(/\s+/g, " ").trim()
+  if (texte.length === 0) return undefined
+  if (texte.length <= LONGUEUR_EXTRAIT) return texte
+
+  const tronque = texte.slice(0, LONGUEUR_EXTRAIT)
+  const dernierEspace = tronque.lastIndexOf(" ")
+  const debut = dernierEspace > 0 ? tronque.slice(0, dernierEspace) : tronque
+  return `${debut.trimEnd()}…`
+}
+
 type PageMetadataInput = {
   title: string
-  description: string
+  description?: string
   path: string
   images?: string[]
   noindex?: boolean
@@ -24,14 +37,17 @@ export function pageMetadata({
   images,
   noindex = false,
 }: PageMetadataInput): Metadata {
+  const avecDescription =
+    description !== undefined && description.trim().length > 0
+
   return {
     title,
-    description,
+    ...(avecDescription ? { description } : {}),
     ...(noindex ? { robots: { index: false, follow: true } } : {}),
     ...(!noindex ? { alternates: { canonical: path } } : {}),
     openGraph: {
       title,
-      description,
+      ...(avecDescription ? { description } : {}),
       url: path,
       siteName: site.name,
       locale: "fr_MA",

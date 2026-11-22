@@ -18,7 +18,7 @@ import { lirePanier } from "@/lib/panier"
 export const metadata = pageMetadata({
   title: "Panier",
   description:
-    "Votre panier eguidar.com : vérifiez vos articles, les frais de livraison selon votre ville et le total TVA incluse avant de passer commande.",
+    "Votre panier eguidar.com : vérifiez vos articles avant de passer commande.",
   path: "/panier",
   noindex: true,
 })

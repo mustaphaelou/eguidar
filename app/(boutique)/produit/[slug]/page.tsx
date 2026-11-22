@@ -16,8 +16,7 @@ import {
   specificationsAffichees,
   type FaitsDeFicheProduit,
 } from "@/lib/fiche-produit"
-import { pageMetadata } from "@/lib/metadata"
-import { formatPrice } from "@/lib/money"
+import { extraitDescription, pageMetadata } from "@/lib/metadata"
 import {
   getProductPageData,
   parametresDesProduits,
@@ -37,7 +36,7 @@ export async function generateMetadata({
   if (!data) return { title: "Produit introuvable" }
   return pageMetadata({
     title: data.name,
-    description: `${data.brand} ${data.name}. Prix ${formatPrice(data.minPrice)} (TVA 20% incluse), paiement à la livraison.`,
+    description: extraitDescription(data.description),
     path: urlProduit(data.slug),
     images: data.images[0] ? [data.images[0].url] : undefined,
   })
