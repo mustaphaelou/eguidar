@@ -813,6 +813,12 @@ describe("la carte des sections en erreur d'un refus du Catalogue", () => {
     }
   })
 
+  it("nomme le champ Description pour que son refus s'affiche sur le champ", () => {
+    expect(
+      sectionsDerreurProduit("Données invalides : description requise")
+    ).toEqual({ description: "description requise" })
+  })
+
   it("nomme Variantes pour une Variante ou un SKU, sans confondre le prix final avec le prix de base", () => {
     expect(
       sectionsDerreurProduit(

@@ -329,7 +329,15 @@ export function ProductForm({
                 name={CHAMPS_FORMULAIRE_PRODUIT.description}
                 defaultValue={product?.description}
                 className="min-h-24"
+                required
+                aria-invalid={state.sections?.description ? true : undefined}
+                aria-describedby={
+                  state.sections?.description ? "description-erreur" : undefined
+                }
               />
+              <FieldError id="description-erreur">
+                {state.sections?.description}
+              </FieldError>
             </div>
           </div>
           <div className="flex flex-col gap-2">

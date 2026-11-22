@@ -42,8 +42,9 @@ function celluleCsv(valeur: string): string {
 }
 
 function ligneCsv(valeurs: Partial<Record<ColonneImport, string>>): string {
+  const cellules = { description: "Bois massif", ...valeurs }
   return COLONNES_IMPORT.map((colonne) =>
-    celluleCsv(valeurs[colonne] ?? CELLULE_VIDE)
+    celluleCsv(cellules[colonne] ?? CELLULE_VIDE)
   ).join(",")
 }
 
@@ -644,12 +645,14 @@ describe("appliquerLeLot — le merge complet", () => {
     const contenu = fichierCsv(
       ligneCsv({
         slug: slug("fauteuil"),
+        description: "",
         variant_sku: sku("FAUTEUIL-1"),
         variant_price: "55.00",
         variant_stock: "8",
       }),
       ligneCsv({
         slug: slug("fauteuil"),
+        description: "",
         variant_sku: sku("FAUTEUIL-3"),
         variant_name: "Haut",
         variant_price: "70.00",

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { enregistrerFaits } from "@/lib/automations/evenements"
 import { prisma } from "@/lib/db"
+import { descriptionProduitSchema } from "@/lib/description-produit"
 import {
   Prisma,
   type Category,
@@ -276,7 +277,7 @@ const productInputSchema = z.object({
       /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
       "slug invalide (minuscules, chiffres et tirets uniquement)"
     ),
-  description: z.string(),
+  description: descriptionProduitSchema,
   brand: z.string().min(1, "marque requise"),
   categoryId: z.string().min(1, "catégorie requise").nullable(),
   price: z.number().int().min(0, "le prix doit être positif ou nul"),
