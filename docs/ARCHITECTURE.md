@@ -22,7 +22,7 @@ Eguidar est **une application Next.js unique**, servie par un seul processus Nod
 | Next.js 16 — App Router, RSC, Cache Components | les pages, les Server Actions, sept routes HTTP sous `app/api/` |
 | PostgreSQL 16 + Prisma 7 | les données |
 | Redis 7 | le cache Next (`cache-handlers/`), les limiteurs, le compteur d'échecs de Connexion |
-| Meilisearch 1.52 | la Recherche |
+| Meilisearch 1.57.0 | la Recherche |
 | Cloudflare R2 | les Images produit |
 | pg-boss, sur le PostgreSQL existant | le travailleur des Automatisations |
 | Cloudflare, devant l'origine | le cache — **et rien d'autre** |

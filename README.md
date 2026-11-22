@@ -128,7 +128,7 @@ Le parcours va du catalogue à la confirmation de commande, sans paiement en lig
 | Interface | React 19, Tailwind CSS 4, shadcn/ui (Base UI), Hugeicons | Composants, styles, icônes |
 | Données | Prisma 7, PostgreSQL 16 | Schéma, migrations, seed |
 | Authentification | Better Auth (e-mail / mot de passe, OAuth, OTP, Turnstile) | Comptes, sessions, rôles |
-| Recherche | Meilisearch 1.52 | Index `products`, facettes, suggestions |
+| Recherche | Meilisearch 1.57.0 | Index `products`, facettes, suggestions |
 | Cache et files | Redis 7, pg-boss | Cache Next, limiteurs, Automatisations durables |
 | E-mails | Resend | Codes de vérification, confirmations, statuts |
 | Images | Cloudflare R2 et URLs pré-signées | Téléversement direct, Brouillons d'Image |
@@ -175,7 +175,7 @@ npm install
 # 2. Environnement — remplissez les secrets (BETTER_AUTH_SECRET, ADMIN_PASSWORD…)
 cp .env.example .env
 
-# 3. Services : PostgreSQL 16, Redis 7, Meilisearch 1.52
+# 3. Services : PostgreSQL 16, Redis 7, Meilisearch 1.57.0
 docker compose up -d --wait postgres redis meilisearch
 
 # 4. Base de test de `npm test` (une seule fois ; « already exists » est sans effet)
