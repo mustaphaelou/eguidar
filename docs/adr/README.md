@@ -123,3 +123,4 @@ qu'elle ne tient pas et l'ADR qui l'a décidé (ADR-0058).
 | [0039](0039-la-porte-json-administration-est-une-route.md) | La porte JSON de l'Administration est une route, et les deux téléversements la traversent | |
 | [0050](0050-le-deploiement-ne-seme-plus-de-donnees-de-demonstration.md) | Le déploiement ne sème plus de Données de démonstration | |
 | [0054](0054-le-cache-de-detail-admet-un-budget-borne.md) | Le cache de détail admet un budget borné de clés, et un refus d'écriture est un miss silencieux | |
+| [0066](0066-le-moteur-de-recherche-epingle-une-version-exacte.md) | Le Moteur de recherche épingle une version exacte, et chaque montée est un geste délibéré | |
