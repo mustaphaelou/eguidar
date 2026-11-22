@@ -2,6 +2,8 @@ import type { PrismaClient } from "@/lib/generated/prisma/client"
 
 export const SLUG_DE_LA_FICHE_DE_PRODUCTION = "sonde-fiche-production"
 export const NOM_DE_LA_FICHE_DE_PRODUCTION = "Sonde Fiche Production"
+export const DESCRIPTION_DE_LA_FICHE_DE_PRODUCTION =
+  "Description rédigée pour la sonde de production.\nCe second paragraphe vérifie que les retours à la ligne survivent."
 export const PRIX_DE_BASE_DE_LA_FICHE = 1_799_990
 export const ECART_DE_CHAQUE_VARIANTE_DE_LA_FICHE = 1_888_800
 export const PRIX_DES_VARIANTES_DE_LA_FICHE =
@@ -34,7 +36,7 @@ export async function semerLaFicheDeProduction(
   const donnees = {
     name: NOM_DE_LA_FICHE_DE_PRODUCTION,
     slug: SLUG_DE_LA_FICHE_DE_PRODUCTION,
-    description: "",
+    description: DESCRIPTION_DE_LA_FICHE_DE_PRODUCTION,
     brand: "Eguidar",
     categoryId: categorie.id,
     price: PRIX_DE_BASE_DE_LA_FICHE,

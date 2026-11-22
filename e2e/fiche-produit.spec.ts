@@ -6,6 +6,7 @@ import {
   attendreLeCompteurDuPanier,
 } from "./harnais/attente"
 import {
+  DESCRIPTION_DE_LA_FICHE_DE_PRODUCTION,
   NOM_DE_LA_FICHE_DE_PRODUCTION,
   SLUG_DE_LA_FICHE_DE_PRODUCTION,
 } from "./harnais/fiche-de-production"
@@ -13,6 +14,8 @@ import {
 const PRIX_AFFICHE = "36.887,90"
 const PRIX_DE_BASE_AFFICHE = "17.999,90"
 const CHEMIN_DE_LA_FICHE = `/produit/${SLUG_DE_LA_FICHE_DE_PRODUCTION}`
+const [PREMIERE_LIGNE_DE_LA_DESCRIPTION, SECONDE_LIGNE_DE_LA_DESCRIPTION] =
+  DESCRIPTION_DE_LA_FICHE_DE_PRODUCTION.split("\n")
 
 function panneauDeLaFiche(page: Page): Locator {
   return page.locator("[data-reveal-etat]").filter({
@@ -73,7 +76,7 @@ async function ouvrir(
 }
 
 test.describe("la fiche du Produit de production", () => {
-  test("rend la Description de repli et les Caractéristiques de base", async ({
+  test("rend la Description écrite et les Caractéristiques de base", async ({
     page,
     serveur,
   }) => {
@@ -85,11 +88,11 @@ test.describe("la fiche du Produit de production", () => {
     await expect(
       page.getByRole("heading", { name: "Caractéristiques", exact: true })
     ).toBeVisible()
+    await expect(page.getByText(PREMIERE_LIGNE_DE_LA_DESCRIPTION)).toBeVisible()
+    await expect(page.getByText(SECONDE_LIGNE_DE_LA_DESCRIPTION)).toBeVisible()
     await expect(
-      page.getByText(
-        `${NOM_DE_LA_FICHE_DE_PRODUCTION} (Eguidar) est un produit de notre rayon Smartphones.`
-      )
-    ).toBeVisible()
+      page.getByText(/est un produit de notre rayon Smartphones/)
+    ).toHaveCount(0)
 
     const caracteristiques = page.locator("dl")
     await expect(caracteristiques).toContainText("Marque")
