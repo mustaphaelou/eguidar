@@ -1,3 +1,4 @@
+import { descriptionProduitSchema } from "./description-produit"
 import {
   grouperParProduit,
   normaliserLeNom,
@@ -182,6 +183,15 @@ export function champRequisManquantDuProduit(
     !lignes.some((ligne) => valeurDeCellule(ligne.cellules, "brand") !== null)
   ) {
     return "brand"
+  }
+  if (
+    !lignes.some(
+      (ligne) =>
+        descriptionProduitSchema.safeParse(ligne.cellules.description ?? "")
+          .success
+    )
+  ) {
+    return "description"
   }
   return null
 }
@@ -397,8 +407,18 @@ function planifierLeProduit(
 
   const name = premiereValeur(groupe.lignes, "name") ?? existant?.name ?? ""
   const brand = premiereValeur(groupe.lignes, "brand") ?? existant?.brand ?? ""
-  const description =
+  const descriptionBrute =
     premiereValeur(groupe.lignes, "description") ?? existant?.description ?? ""
+  const descriptionValidee =
+    descriptionProduitSchema.safeParse(descriptionBrute)
+  if (!descriptionValidee.success) {
+    return planDuRefus(groupe, {
+      code: "champ_requis_manquant",
+      champ: "description",
+      portee: "produit",
+    })
+  }
+  const description = descriptionValidee.data
 
   const avertissements: AvertissementImport[] = []
   if (categoryId === null) {

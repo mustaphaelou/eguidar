@@ -201,6 +201,103 @@ describe("admin catalog mutations", () => {
     )
   })
 
+  it("refuse une création sans Description et nomme le champ", async () => {
+    for (const description of ["", "   \t "]) {
+      const refus = await verifierRefusValidation(CatalogValidationError, () =>
+        createProduct(
+          makeInput({ slug: slug("description-vide"), description })
+        )
+      )
+      expect(refus.message).toContain("description requise")
+      expect(
+        await prisma.product.findUnique({
+          where: { slug: slug("description-vide") },
+        })
+      ).toBeNull()
+    }
+  })
+
+  it("trimme la Description d'une création", async () => {
+    const produit = await createProduct(
+      makeInput({
+        slug: slug("description-trim"),
+        description: "  Bois massif  ",
+      })
+    )
+    try {
+      const persiste = await prisma.product.findUniqueOrThrow({
+        where: { id: produit.id },
+        select: { description: true },
+      })
+      expect(persiste.description).toBe("Bois massif")
+    } finally {
+      await prisma.product.delete({ where: { id: produit.id } })
+    }
+  })
+
+  it("refuse une mise à jour vers une Description vide sans écraser la stockée", async () => {
+    const produit = await createProduct(
+      makeInput({
+        slug: slug("description-update"),
+        description: "Bois massif",
+      })
+    )
+    try {
+      const refus = await verifierRefusValidation(CatalogValidationError, () =>
+        updateProduct(
+          produit.id,
+          makeInput({
+            slug: slug("description-update"),
+            description: "  ",
+          })
+        )
+      )
+      expect(refus.message).toContain("description requise")
+      const persiste = await prisma.product.findUniqueOrThrow({
+        where: { id: produit.id },
+        select: { description: true },
+      })
+      expect(persiste.description).toBe("Bois massif")
+    } finally {
+      await prisma.product.delete({ where: { id: produit.id } })
+    }
+  })
+
+  it("trimme la Description d'une mise à jour", async () => {
+    const produit = await createProduct(
+      makeInput({
+        slug: slug("description-update-trim"),
+        description: "Avant",
+      })
+    )
+    try {
+      const variante = produit.variants[0]!
+      await updateProduct(
+        produit.id,
+        makeInput({
+          slug: slug("description-update-trim"),
+          description: "  Après  ",
+          variants: [
+            {
+              id: variante.id,
+              name: variante.name,
+              sku: variante.sku,
+              priceDelta: variante.priceDelta,
+              stock: variante.stock,
+            },
+          ],
+        })
+      )
+      const persiste = await prisma.product.findUniqueOrThrow({
+        where: { id: produit.id },
+        select: { description: true },
+      })
+      expect(persiste.description).toBe("Après")
+    } finally {
+      await prisma.product.delete({ where: { id: produit.id } })
+    }
+  })
+
   it("rejects negative stock on a variant", async () => {
     await verifierRefusValidation(CatalogValidationError, () =>
       createProduct(

@@ -27,10 +27,17 @@ function ligneCsv(valeurs: Partial<Record<ColonneImport, string>>): string {
   ).join(",")
 }
 
+const DESCRIPTION_FIXTURE = "Bois massif"
+
 function lignesDuFichier(
   ...valeurs: readonly Partial<Record<ColonneImport, string>>[]
 ): LigneImport[] {
-  const texte = [EN_TETE, ...valeurs.map(ligneCsv)].join("\n")
+  const texte = [
+    EN_TETE,
+    ...valeurs.map((ligne) =>
+      ligneCsv({ description: DESCRIPTION_FIXTURE, ...ligne })
+    ),
+  ].join("\n")
   return [...lireLesLignes(texte)]
 }
 
@@ -57,7 +64,7 @@ function produit(
     id: `produit-${overrides.slug}`,
     name: `Produit ${overrides.slug}`,
     brand: "Marque",
-    description: "",
+    description: DESCRIPTION_FIXTURE,
     categoryId: null,
     structureSlug: null,
     price: 0,
@@ -246,6 +253,38 @@ describe("planifierLeLot — la création", () => {
     expect(sansMarque.issue).toBe("refuse")
   })
 
+  it("refuse une création dont la Description est vide ou seulement blanche", () => {
+    const refus = {
+      code: "champ_requis_manquant",
+      champ: "description",
+      portee: "produit",
+    } as const
+
+    for (const description of ["", "   \t "]) {
+      const plan = planUnique(
+        lignesDuFichier({ ...CHAISE, description }),
+        instantane()
+      )
+
+      expect(plan.issue).toBe("refuse")
+      expect(plan.codeRefus).toBe("champ_requis_manquant")
+      expect(plan.refus).toEqual(refus)
+      expect(plan.etatDesire).toBeNull()
+      expect(plan.statuts).toEqual([{ numero: 2, statut: "refusee" }])
+      expect(plan.lignes.map((ligne) => ligne.refus)).toEqual([refus])
+    }
+  })
+
+  it("ramène la Description d'une création à son texte, sans espaces de bord", () => {
+    const plan = planUnique(
+      lignesDuFichier({ ...CHAISE, description: "  Bois massif  " }),
+      instantane()
+    )
+
+    expect(plan.issue).toBe("cree")
+    expect(plan.etatDesire?.description).toBe("Bois massif")
+  })
+
   it("accepte un name ou un brand porté par une seule Ligne du Produit", () => {
     const plan = planUnique(
       lignesDuFichier(
@@ -365,6 +404,47 @@ describe("planifierLeLot — la mise à jour légère", () => {
     expect(plan.diff).toEqual({ produit: [], variantes: [] })
     expect(plan.etatDesire).toBeNull()
     expect(plan.statuts).toEqual([{ numero: 2, statut: "inchangee" }])
+  })
+
+  it("garde la Description stockée quand sa cellule est vide", () => {
+    const plan = planUnique(
+      lignesDuFichier({
+        slug: "chaise",
+        variant_sku: "CHAISE-01",
+        variant_stock: "5",
+        description: "",
+      }),
+      catalogue
+    )
+
+    expect(plan.issue).toBe("modifie")
+    expect(plan.etatDesire?.description).toBe("Bois massif")
+    expect(plan.diff.produit).not.toContainEqual(
+      expect.objectContaining({ champ: "description" })
+    )
+  })
+
+  it("refuse une mise à jour qui laisserait la Description stockée vide", () => {
+    const sansDescription = produit({
+      ...existante,
+      description: "",
+    })
+    const plan = planUnique(
+      lignesDuFichier({
+        slug: "chaise",
+        variant_sku: "CHAISE-01",
+        description: "",
+      }),
+      instantane({ produits: [sansDescription] })
+    )
+
+    expect(plan.issue).toBe("refuse")
+    expect(plan.refus).toEqual({
+      code: "champ_requis_manquant",
+      champ: "description",
+      portee: "produit",
+    })
+    expect(plan.etatDesire).toBeNull()
   })
 
   it("ne change que le stock et garde le nom, la marque, la description et la Structure", () => {
