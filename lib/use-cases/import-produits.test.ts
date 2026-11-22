@@ -292,7 +292,10 @@ describe("televerserLeFichier — les Lignes lues", () => {
 
   it("rejoue une Ligne mal formée avec ses cellules brutes et son refus", async () => {
     const resultat = await televerser(
-      `${EN_TETE}${LIGNE_CHAISE}\r\ntrop,peu\r\n${LIGNE_TABLE}\r\n`
+      `${EN_TETE}` +
+        "chaise,Chaise,Maison,,Bois massif,CHAISE-01,Chaise en bois,12.50,3\r\n" +
+        "trop,peu\r\n" +
+        "table,Table,Maison,,Bois massif,TABLE-01,Table en bois,89.00,1\r\n"
     )
 
     await verifierLeLot(resultat.lotId)
@@ -579,8 +582,9 @@ describe("verifierLeLot — le jugement contre le Catalogue", () => {
   }
 
   function ligneCsv(valeurs: Partial<Record<ColonneImport, string>>): string {
+    const cellules = { description: "Bois massif", ...valeurs }
     return COLONNES_IMPORT.map((colonne) =>
-      celluleCsv(valeurs[colonne] ?? "")
+      celluleCsv(cellules[colonne] ?? "")
     ).join(",")
   }
 
@@ -737,6 +741,41 @@ describe("verifierLeLot — le jugement contre le Catalogue", () => {
       ],
     })
 
+    expect(await compterLeCatalogue()).toEqual(avant)
+  })
+
+  it("refuse à la Vérification un Produit sans Description, avant toute écriture", async () => {
+    const avant = await compterLeCatalogue()
+    const contenu = fichierCsv(
+      ligneCsv({
+        slug: `v-${runId}-sans-description`,
+        name: "Sans description",
+        brand: "Maison",
+        description: "",
+        variant_sku: `${runId}-SANS-DESC-01`,
+        variant_name: "Sans description",
+        variant_price: "10.00",
+      })
+    )
+    const televerse = await televerser(contenu)
+    const rapport = await verifierLeLot(televerse.lotId)
+    const lot = await lireLeLot(televerse.lotId)
+
+    expect(rapport.compteurs).toEqual({
+      produitsCrees: 0,
+      produitsModifies: 0,
+      produitsInchanges: 0,
+      produitsRefuses: 1,
+    })
+    expect(rapport.peutAppliquer).toBe(false)
+    expect(lot?.lignes[0]).toMatchObject({
+      statut: "refusee",
+      refus: {
+        code: "champ_requis_manquant",
+        champ: "description",
+        portee: "produit",
+      },
+    })
     expect(await compterLeCatalogue()).toEqual(avant)
   })
 

@@ -301,6 +301,37 @@ describe("ProductForm — les erreurs par section", () => {
     expect(alertes.length).toBeGreaterThanOrEqual(3)
   })
 
+  it("rend la Description obligatoire et affiche son refus sur le champ", async () => {
+    const action = vi.fn(async (): Promise<ProductFormState> => ({
+      error: "Données invalides : description requise",
+      sections: { description: "description requise" },
+    }))
+    render(
+      <ProductForm product={initialProduct()} structures={[]} action={action} />
+    )
+
+    const description = container.querySelector<HTMLTextAreaElement>(
+      `textarea[name="${CHAMPS_FORMULAIRE_PRODUIT.description}"]`
+    )!
+    expect(description.required).toBe(true)
+
+    const form = container.querySelector<HTMLFormElement>("form")!
+    await act(async () => {
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(description.getAttribute("aria-invalid")).toBe("true")
+    expect(description.getAttribute("aria-describedby")).toBe(
+      "description-erreur"
+    )
+    expect(
+      description.parentElement?.querySelector('[role="alert"]')?.textContent
+    ).toContain("description requise")
+  })
+
   it("garde le message global quand le refus ne nomme aucune section", async () => {
     const action = vi.fn(async (): Promise<ProductFormState> => ({
       error: "L'enregistrement du Catalogue a échoué",

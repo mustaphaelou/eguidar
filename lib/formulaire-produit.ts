@@ -54,6 +54,7 @@ export type EntreeImageProduitFormulaire =
 
 export const SECTIONS_FORMULAIRE_PRODUIT = [
   "informations",
+  "description",
   "miseEnAvant",
   "images",
   "variantes",
@@ -73,12 +74,13 @@ export interface EtatFormulaireProduit {
 }
 
 function sectionDuProbleme(probleme: string): SectionFormulaireProduit | null {
+  if (/description/i.test(probleme)) return "description"
   if (/variante|sku|stock/i.test(probleme)) return "variantes"
   if (/image|galerie|brouillon/i.test(probleme)) return "images"
   if (/catégorie|structure/i.test(probleme)) return "structure"
   if (/mise en avant|mis en avant|ordre de mise/i.test(probleme))
     return "miseEnAvant"
-  if (/nom|slug|marque|prix|spécification|description/i.test(probleme))
+  if (/nom|slug|marque|prix|spécification/i.test(probleme))
     return "informations"
   return null
 }

@@ -333,8 +333,9 @@ function celluleCsv(valeur: string): string {
 }
 
 function ligneCsv(valeurs: Partial<Record<ColonneImport, string>>): string {
+  const cellules = { description: "Bois massif", ...valeurs }
   return COLONNES_IMPORT.map((colonne) =>
-    celluleCsv(valeurs[colonne] ?? "")
+    celluleCsv(cellules[colonne] ?? "")
   ).join(",")
 }
 
