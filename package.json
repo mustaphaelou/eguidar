@@ -21,15 +21,15 @@
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1167.0",
-    "@aws-sdk/s3-request-presigner": "^3.1167.0",
+    "@aws-sdk/client-s3": "^3.1172.0",
+    "@aws-sdk/s3-request-presigner": "^3.1172.0",
     "@base-ui/react": "^1.9.0",
     "@hugeicons/core-free-icons": "^4.4.0",
     "@hugeicons/react": "^1.1.10",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "@tanstack/react-table": "^9.3.1",
-    "better-auth": "^1.7.22",
+    "better-auth": "^1.7.26",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "meilisearch": "^0.63.0",
@@ -39,9 +39,9 @@
     "prisma": "7.10.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "recharts": "^3.10.1",
+    "recharts": "^3.11.0",
     "redis": "^6.3.1",
-    "resend": "^6.38.0",
+    "resend": "^6.39.0",
     "server-only": "^0.0.1",
     "sharp": "^0.35.5",
     "tailwind-merge": "^3.7.0",
@@ -67,7 +67,7 @@
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.14.0",
-    "@playwright/test": "1.65.0",
+    "@playwright/test": "1.65.1",
     "@tailwindcss/postcss": "^4",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^26",
@@ -86,6 +86,6 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   }
 }
