@@ -29,7 +29,7 @@ export async function generateMetadata({
   if (!data) return { title: "Catégorie introuvable" }
   return pageMetadata({
     title: data.category.name,
-    description: `Achetez ${data.category.name.toLowerCase()} au meilleur prix au Maroc. TVA 20% incluse, paiement à la livraison.`,
+    description: `Produits de la catégorie ${data.category.name} sur eguidar.com.`,
     path: `/categorie/${slug}`,
   })
 }

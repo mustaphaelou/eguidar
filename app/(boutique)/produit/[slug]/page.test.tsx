@@ -43,7 +43,6 @@ import ProduitPage, { generateMetadata } from "./page"
 
 const PRIX_DES_VARIANTES = 3_688_790
 const PRIX_DES_VARIANTES_AFFICHE = "36.887,90\u00a0MAD"
-const PRIX_DE_BASE_AFFICHE = "17.999,90\u00a0MAD"
 
 function ficheDuProduit(
   surcharges: Partial<ProductDetailData> = {}
@@ -174,17 +173,75 @@ describe("la fiche Produit", () => {
     expect(html).toContain("Il est actuellement en rupture de stock.")
   })
 
-  it("annonce le prix des Variantes dans la métadonnée de partage", async () => {
-    getProductPageDataMock.mockResolvedValue(ficheDuProduit())
+  it("cite la Description du Produit dans la métadonnée et l'aperçu de partage", async () => {
+    getProductPageDataMock.mockResolvedValue(
+      ficheDuProduit({
+        description: "  Une   description\n\nécrite par le marchand.  ",
+      })
+    )
 
     const metadonnee = await generateMetadata({
       params: Promise.resolve({ slug: "iphone-18-pro-max" }),
     })
 
     expect(metadonnee.title).toBe("iPhone 18 Pro Max")
-    expect(String(metadonnee.description)).toContain(PRIX_DES_VARIANTES_AFFICHE)
-    expect(String(metadonnee.description)).not.toContain(PRIX_DE_BASE_AFFICHE)
+    expect(metadonnee.description).toBe(
+      "Une description écrite par le marchand."
+    )
+    expect(metadonnee.openGraph?.description).toBe(
+      "Une description écrite par le marchand."
+    )
     expect(metadonnee.alternates?.canonical).toBe("/produit/iphone-18-pro-max")
+  })
+
+  it("raccourcit la Description de la métadonnée sans la toucher sur la fiche", async () => {
+    const description = Array.from(
+      { length: 60 },
+      (_, index) => `mot${index.toString().padStart(2, "0")}`
+    ).join(" ")
+    const fiche = ficheDuProduit({ description })
+
+    getProductPageDataMock.mockResolvedValue(fiche)
+
+    const metadonnee = await generateMetadata({
+      params: Promise.resolve({ slug: "iphone-18-pro-max" }),
+    })
+
+    expect(String(metadonnee.description).endsWith("…")).toBe(true)
+    expect(String(metadonnee.description).length).toBeLessThanOrEqual(156)
+    expect(metadonnee.openGraph?.description).toBe(metadonnee.description)
+
+    const html = await rendre(fiche)
+    expect(html).toContain(description)
+  })
+
+  it("ne promet ni TVA, ni paiement, ni prix dans la métadonnée", async () => {
+    getProductPageDataMock.mockResolvedValue(
+      ficheDuProduit({ description: "Une description sans promesse." })
+    )
+
+    const metadonnee = await generateMetadata({
+      params: Promise.resolve({ slug: "iphone-18-pro-max" }),
+    })
+
+    const texte = `${String(metadonnee.description)} ${String(metadonnee.openGraph?.description)}`
+    expect(texte).not.toContain("TVA")
+    expect(texte).not.toContain("paiement")
+    expect(texte).not.toContain("Prix")
+    expect(texte).not.toContain(PRIX_DES_VARIANTES_AFFICHE)
+  })
+
+  it("ne publie aucune Description quand le Produit n'en a pas", async () => {
+    getProductPageDataMock.mockResolvedValue(
+      ficheDuProduit({ description: "  \n  " })
+    )
+
+    const metadonnee = await generateMetadata({
+      params: Promise.resolve({ slug: "iphone-18-pro-max" }),
+    })
+
+    expect(metadonnee.description).toBeUndefined()
+    expect(metadonnee.openGraph?.description).toBeUndefined()
   })
 
   it("sert les Données structurées avec la description de repli et le prix des Variantes", async () => {

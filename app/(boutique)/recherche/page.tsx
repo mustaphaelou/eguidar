@@ -22,7 +22,7 @@ export async function generateMetadata({
   return pageMetadata({
     title: query ? `Recherche : ${query}` : "Recherche",
     description: query
-      ? `Résultats pour « ${query} » sur eguidar.com : filtres par marque, catégorie et prix, TVA incluse, paiement à la livraison.`
+      ? `Résultats pour « ${query} » sur eguidar.com.`
       : "Recherchez un produit, une marque dans le catalogue eguidar.com.",
     path: "/recherche",
     noindex: true,
