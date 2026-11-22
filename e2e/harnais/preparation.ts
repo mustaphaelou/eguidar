@@ -6,6 +6,10 @@ import path from "node:path"
 
 import { RACINE } from "./artefact"
 import { semerLesCommandesDeFixture } from "./commandes-de-fixture"
+import {
+  CHEMINS_DES_IMAGES_DE_LA_FICHE,
+  semerLaFicheDeProduction,
+} from "./fiche-de-production"
 import { environnementDeBuild } from "./serveur"
 
 const TABLES_A_TRONQUER = [
@@ -62,15 +66,17 @@ function executer(
 }
 
 function copierLImagePublique(): void {
-  const destination = path.join(RACINE, "public", CHEMIN_PUBLIC_DE_L_IMAGE)
-  mkdirSync(path.dirname(destination), { recursive: true })
-  if (
-    existsSync(destination) &&
-    readFileSync(destination).equals(readFileSync(IMAGE_DE_FIXTURE))
-  ) {
-    return
+  for (const chemin of CHEMINS_DES_IMAGES_DE_LA_FICHE) {
+    const destination = path.join(RACINE, "public", chemin)
+    mkdirSync(path.dirname(destination), { recursive: true })
+    if (
+      existsSync(destination) &&
+      readFileSync(destination).equals(readFileSync(IMAGE_DE_FIXTURE))
+    ) {
+      continue
+    }
+    copyFileSync(IMAGE_DE_FIXTURE, destination)
   }
-  copyFileSync(IMAGE_DE_FIXTURE, destination)
 }
 
 async function tronquerLaBase(baseDeDonnees: string): Promise<void> {
@@ -103,6 +109,8 @@ export async function poserLaFixture(baseDeDonnees: string): Promise<void> {
     where: { id: produit.id },
     data: { images: [CHEMIN_PUBLIC_DE_L_IMAGE] },
   })
+
+  await semerLaFicheDeProduction(prisma)
 
   const { toIndexableProduct } = await import("../../lib/index-projection")
   const { indexProductDocuments } = await import("../../lib/meili")

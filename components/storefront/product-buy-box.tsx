@@ -23,6 +23,15 @@ import type { ProductVariantDto } from "@/lib/use-cases/storefront"
 
 const MAX_CHIPS = 6
 
+function varianteInitiale(variants: ProductVariantDto[]): string {
+  if (variants.length === 0) return ""
+  const disponibles = variants.filter((variant) => variant.stock > 0)
+  const candidates = disponibles.length > 0 ? disponibles : variants
+  return candidates.reduce((meilleure, variante) =>
+    variante.prix < meilleure.prix ? variante : meilleure
+  ).id
+}
+
 export function ProductBuyBox({
   minPrice,
   variants,
@@ -34,13 +43,14 @@ export function ProductBuyBox({
   freeShipping: boolean
   port?: PortMutationsDuPanier
 }) {
-  const [variantId, setVariantId] = useState(variants[0]?.id ?? "")
+  const [variantId, setVariantId] = useState(() => varianteInitiale(variants))
   const { enAttente, messageRefus, ajoute, ajouter } =
     useMutationsDuPanier(port)
   const [barVisible, setBarVisible] = useState(false)
   const buyButtonRef = useRef<HTMLButtonElement>(null)
 
   const selected = variants.find((variant) => variant.id === variantId)
+  const tousEpuises = variants.every((variant) => variant.stock === 0)
   const stock = selected?.stock ?? 0
   const outOfStock = stock === 0
   const prix = selected ? formatPrice(selected.prix) : ""
@@ -106,10 +116,11 @@ export function ProductBuyBox({
         </p>
         <Button
           disabled
+          variant="secondary"
           size="xl"
           className="w-full rounded-full text-body lg:h-9"
         >
-          Ajouter au panier
+          Produit indisponible
         </Button>
       </div>
     )
@@ -127,21 +138,36 @@ export function ProductBuyBox({
                 role="group"
                 aria-label="Variante"
               >
-                {variants.map((variant) => (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    onClick={() => setVariantId(variant.id)}
-                    className={cn(
-                      "rounded-full border px-4 py-1.5 text-[14px] transition-colors",
-                      variant.id === variantId
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-foreground/15 text-muted-foreground hover:border-foreground hover:text-foreground"
-                    )}
-                  >
-                    {variant.name}
-                  </button>
-                ))}
+                {variants.map((variant) => {
+                  const epuisee = variant.stock === 0
+                  return (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      onClick={() => setVariantId(variant.id)}
+                      aria-pressed={variant.id === variantId}
+                      aria-label={
+                        epuisee
+                          ? `${variant.name} — rupture de stock`
+                          : undefined
+                      }
+                      className={cn(
+                        "rounded-full border px-4 py-1.5 text-[14px] transition-colors",
+                        variant.id === variantId
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-foreground/15 text-muted-foreground hover:border-foreground hover:text-foreground",
+                        epuisee && "border-dashed",
+                        epuisee &&
+                          variant.id !== variantId &&
+                          "text-muted-foreground/60"
+                      )}
+                    >
+                      <span className={cn(epuisee && "line-through")}>
+                        {variant.name}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             </>
           ) : (
@@ -161,6 +187,7 @@ export function ProductBuyBox({
                     {variants.map((variant) => (
                       <SelectItem key={variant.id} value={variant.id}>
                         {variant.name} — {formatPrice(variant.prix)}
+                        {variant.stock === 0 ? " — rupture de stock" : ""}
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -184,7 +211,7 @@ export function ProductBuyBox({
               aria-hidden="true"
               className="size-2 rounded-full bg-destructive"
             />
-            Rupture de stock
+            {tousEpuises ? "Rupture de stock" : "Variante en rupture de stock"}
           </>
         ) : (
           <>
@@ -201,11 +228,18 @@ export function ProductBuyBox({
       <Button
         ref={buyButtonRef}
         size="xl"
+        variant={outOfStock ? "secondary" : "default"}
         onClick={lancerAjout}
         disabled={outOfStock || enAttente}
         className="w-full rounded-full text-body lg:h-9"
       >
-        {enAttente ? "Ajout…" : "Ajouter au panier"}
+        {enAttente
+          ? "Ajout…"
+          : tousEpuises
+            ? "Produit indisponible"
+            : outOfStock
+              ? "Variante indisponible"
+              : "Ajouter au panier"}
       </Button>
       {ajoute && <p className="text-sm text-emerald-700">Ajouté au panier</p>}
       {messageRefus && (

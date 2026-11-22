@@ -253,3 +253,36 @@ test.describe("25. l'encre de l'annuaire du Pied de page", () => {
     ).toBeGreaterThanOrEqual(9)
   })
 })
+
+const PRODUIT_EN_MISE_EN_AVANT = "iPhone 15 Pro"
+
+test.describe("26. la sémantique du document d'accueil", () => {
+  test("26. / porte un seul h1, et c'est le titre du premier Panneau", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const titres = page.getByRole("heading", { level: 1 })
+    await expect(titres).toHaveCount(1)
+    await expect(titres).toHaveText(PRODUIT_EN_MISE_EN_AVANT)
+  })
+
+  test("27. le Pied de page ne porte plus de titre « Pied de page »", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaBoutique(page, serveur.origine, "/")
+
+    const pied = page.getByRole("contentinfo")
+    await expect(pied).toHaveCount(1)
+    await expect(pied).toBeVisible()
+    await expect(pied).not.toContainText("Pied de page")
+    await expect(
+      pied.getByRole("heading", { name: "Pied de page" })
+    ).toHaveCount(0)
+    await expect(
+      pied.getByRole("link", { name: "Tous les produits", exact: true })
+    ).toBeVisible()
+  })
+})

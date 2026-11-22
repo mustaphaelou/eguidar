@@ -11,6 +11,11 @@ import {
   buildProductDonneesStructurees,
   serializeJsonLd,
 } from "@/lib/donnees-structurees"
+import {
+  descriptionAffichee,
+  specificationsAffichees,
+  type FaitsDeFicheProduit,
+} from "@/lib/fiche-produit"
 import { pageMetadata } from "@/lib/metadata"
 import { formatPrice } from "@/lib/money"
 import {
@@ -61,7 +66,12 @@ async function ProductContent({
   const data = await getProductPageData(slug)
   if (!data) notFound()
 
-  const specEntries = Object.entries(data.specs)
+  const faits: FaitsDeFicheProduit = {
+    ...data,
+    categoryName: data.category?.name ?? null,
+  }
+  const description = descriptionAffichee(faits)
+  const specEntries = specificationsAffichees(faits)
   const crumbs = [
     { name: "Accueil", href: "/" },
     { name: "Tous nos produits", href: "/produits" },
@@ -80,7 +90,7 @@ async function ProductContent({
           __html: serializeJsonLd(
             buildProductDonneesStructurees({
               name: data.name,
-              description: data.description,
+              description,
               images: data.images.map((image) => image.url),
               brand: data.brand,
               slug: data.slug,
@@ -122,39 +132,35 @@ async function ProductContent({
         </div>
       </div>
 
-      {data.description ? (
-        <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
-          <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
-            Description
-          </h2>
-          <p className="mt-4 max-w-[70ch] text-body leading-body tracking-[-0.022em] whitespace-pre-line text-muted-foreground">
-            {data.description}
-          </p>
-        </section>
-      ) : null}
+      <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
+        <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
+          Description
+        </h2>
+        <p className="mt-4 max-w-[70ch] text-body leading-body tracking-[-0.022em] whitespace-pre-line text-muted-foreground">
+          {description}
+        </p>
+      </section>
 
-      {specEntries.length > 0 ? (
-        <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
-          <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
-            Caractéristiques
-          </h2>
-          <dl className="mt-4 max-w-[70ch] divide-y divide-foreground/10">
-            {specEntries.map(([label, value]) => (
-              <div
-                key={label}
-                className="flex items-baseline justify-between gap-8 py-3"
-              >
-                <dt className="text-[14px] leading-[1.4286] font-medium tracking-[-0.016em]">
-                  {label}
-                </dt>
-                <dd className="text-right text-[14px] leading-[1.4286] tracking-[-0.016em] text-muted-foreground">
-                  {value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ) : null}
+      <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
+        <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
+          Caractéristiques
+        </h2>
+        <dl className="mt-4 max-w-[70ch] divide-y divide-foreground/10">
+          {specEntries.map(([label, value]) => (
+            <div
+              key={label}
+              className="flex items-baseline justify-between gap-8 py-3"
+            >
+              <dt className="text-[14px] leading-[1.4286] font-medium tracking-[-0.016em]">
+                {label}
+              </dt>
+              <dd className="text-right text-[14px] leading-[1.4286] tracking-[-0.016em] text-muted-foreground">
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       {data.related.length > 0 ? (
         <section className="mt-10 bg-muted">

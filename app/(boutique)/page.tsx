@@ -44,7 +44,9 @@ async function HomeContent() {
           immediat
           lienCatalogue
         />
-      ) : null}
+      ) : (
+        <h1 className="sr-only">Électronique au meilleur prix au Maroc</h1>
+      )}
       {deuxieme ? (
         <PanneauPleineLargeur panneau={deuxieme} champ="noir" />
       ) : null}

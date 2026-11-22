@@ -11,17 +11,20 @@ vi.mock("next/image", () => ({
     alt,
     sizes,
     preload,
+    className,
   }: {
     src: string
     alt: string
     sizes?: string
     preload?: boolean
+    className?: string
   }) => (
     <span
       data-image-src={src}
       data-image-alt={alt}
       data-image-sizes={sizes}
       data-image-preload={String(preload ?? false)}
+      data-image-class={className}
     />
   ),
 }))
@@ -77,7 +80,7 @@ describe("ProductGallery", () => {
     render(<ProductGallery images={IMAGES} name="Produit Témoin" />)
 
     const secondeVignette = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Image 2"]'
+      '[aria-label="Afficher l\'image 2 sur 2"]'
     )!
     act(() => secondeVignette.click())
 
@@ -94,11 +97,13 @@ describe("ProductGallery", () => {
     render(<ProductGallery images={IMAGES} name="Produit Témoin" />)
 
     const vignettes = container.querySelectorAll<HTMLElement>(
-      ".flex.gap-2 [data-image-sizes]"
+      '[role="group"][aria-label="Images du produit"] [data-image-sizes]'
     )
     expect(vignettes).toHaveLength(2)
     for (const vignette of vignettes) {
-      expect(vignette.getAttribute("data-image-sizes")).toBe("64px")
+      expect(vignette.getAttribute("data-image-sizes")).toBe(
+        "(min-width: 1024px) 72px, 16vw"
+      )
       expect(vignette.getAttribute("data-image-alt")).toBe("")
     }
 
@@ -106,5 +111,39 @@ describe("ProductGallery", () => {
       roots[0]!.render(<ProductGallery images={[]} name="Sans image" />)
     )
     expect(container.textContent).toContain("Aucune image")
+  })
+
+  it("montre l'image entière et un compteur, pas un recadrage", () => {
+    render(<ProductGallery images={IMAGES} name="Produit Témoin" />)
+
+    const principale = container.querySelector<HTMLElement>(
+      ".relative.aspect-square [data-image-src]"
+    )
+    expect(principale?.getAttribute("data-image-class")).toContain(
+      "object-contain"
+    )
+    expect(container.textContent).toContain("1 / 2")
+
+    const secondes = container.querySelectorAll<HTMLElement>(
+      '[role="group"] [data-image-class]'
+    )
+    for (const vignette of secondes) {
+      expect(vignette.getAttribute("data-image-class")).toContain(
+        "object-contain"
+      )
+    }
+  })
+
+  it("nomme chaque vignette avec sa position, le total et son texte alternatif", () => {
+    render(<ProductGallery images={IMAGES} name="Produit Témoin" />)
+
+    expect(
+      container.querySelector(
+        `[aria-label="Afficher l'image 1 sur 2 — Face avant"]`
+      )
+    ).not.toBeNull()
+    expect(
+      container.querySelector(`[aria-label="Afficher l'image 2 sur 2"]`)
+    ).not.toBeNull()
   })
 })

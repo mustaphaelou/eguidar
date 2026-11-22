@@ -36,7 +36,7 @@ export const CALLOUT = [
 ].join(" ")
 
 export const HAUTEUR_PLEINE_LARGEUR =
-  "min-h-[500px] sm:min-h-[570px] lg:min-h-[580px]"
+  "min-h-[500px] sm:min-h-[570px] lg:min-h-[clamp(640px,52vw,820px)]"
 export const HAUTEUR_DUO = "min-h-[500px] sm:min-h-[490px] lg:min-h-[580px]"
 
 export const GOUTTIERE_PANNEAUX = "gap-3"
@@ -69,11 +69,15 @@ function ArtDuPanneau({
   sizes,
   immediat = false,
   index = 3,
+  pleineLargeur = false,
+  melangeSurFond = false,
 }: {
   panneau: PanneauProduit
   sizes: string
   immediat?: boolean
   index?: number
+  pleineLargeur?: boolean
+  melangeSurFond?: boolean
 }) {
   if (!panneau.produit.image) return null
 
@@ -92,7 +96,11 @@ function ArtDuPanneau({
           fill
           sizes={sizes}
           loading={immediat ? "eager" : undefined}
-          className="object-cover object-bottom"
+          className={cn(
+            "object-cover object-bottom",
+            pleineLargeur && "lg:object-contain lg:object-center",
+            pleineLargeur && melangeSurFond && "lg:mix-blend-multiply"
+          )}
         />
       </div>
     </div>
@@ -161,6 +169,7 @@ export function PanneauPleineLargeur({
   lienCatalogue?: boolean
 }) {
   const c = CHAMP[champ]
+  const Titre = premier ? "h1" : "h2"
 
   return (
     <ApparitionPanneau
@@ -173,9 +182,9 @@ export function PanneauPleineLargeur({
       )}
     >
       <div className="mx-auto flex w-full flex-col items-center px-6 pt-10 sm:pt-14">
-        <h2 className={cn(TITRE_HERO, "font-semibold", APPARITION)}>
+        <Titre className={cn(TITRE_HERO, "font-semibold", APPARITION)}>
           {panneau.titre}
-        </h2>
+        </Titre>
         <p
           className={cn(
             SURTITRE_HERO,
@@ -205,7 +214,13 @@ export function PanneauPleineLargeur({
           ) : null}
         </div>
       </div>
-      <ArtDuPanneau panneau={panneau} sizes="100vw" immediat={immediat} />
+      <ArtDuPanneau
+        panneau={panneau}
+        sizes="(min-width: 1024px) 700px, 100vw"
+        immediat={immediat}
+        pleineLargeur
+        melangeSurFond={champ !== "noir"}
+      />
     </ApparitionPanneau>
   )
 }

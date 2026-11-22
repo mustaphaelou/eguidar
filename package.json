@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "tsx e2e/scripts/lancer-la-sonde.ts",
     "seed:demo": "tsx prisma/seed-demo.ts",
+    "reindex": "tsx scripts/reindex-catalogue.ts",
     "porte:verifier": "tsx scripts/porte-de-fusion/verifier.ts",
     "format": "tsx scripts/format.ts --ecrire",
     "format:check": "tsx scripts/format.ts",

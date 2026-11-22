@@ -36,6 +36,10 @@ const ENTREE_NON_CHECK = new Map([
     "test:e2e",
     "la sonde navigateur, qui exige Chromium et une base dédiée : la CI l'héberge dans le job `build` via `npx playwright test`, et `scripts/checks.sh` ne la rejoue pas sur le poste",
   ],
+  [
+    "reindex",
+    "la reconstruction de l'index de recherche, qui écrit dans Meilisearch : la CI prouve la projection par ses tests, jamais en rejouant la commande",
+  ],
 ])
 
 function lireLesScripts(): Set<string> {

@@ -60,6 +60,28 @@ function panneauDuProduit(page: Page, titre: string): Locator {
     .filter({ has: page.getByRole("heading", { name: titre, exact: true }) })
 }
 
+function imageDuPanneau(page: Page, titre: string): Locator {
+  return panneauDuProduit(page, titre).getByRole("img", {
+    name: titre,
+    exact: true,
+  })
+}
+
+async function stylesDeLImage(image: Locator): Promise<{
+  objectFit: string
+  objectPosition: string
+  mixBlendMode: string
+}> {
+  return image.evaluate((element) => {
+    const styles = getComputedStyle(element)
+    return {
+      objectFit: styles.objectFit,
+      objectPosition: styles.objectPosition,
+      mixBlendMode: styles.mixBlendMode,
+    }
+  })
+}
+
 test.describe("le Panneau en Mise en avant", () => {
   test("montre l'art de son Produit à 390 × 844", async ({ page, serveur }) => {
     await ouvrirLAccueil(page, serveur)
@@ -67,6 +89,20 @@ test.describe("le Panneau en Mise en avant", () => {
     const boite = await boiteDeLImageDuPremierPanneau(page)
     expect(boite.hauteur).toBeGreaterThan(0)
     expect(boite.largeur).toBeGreaterThan(0)
+  })
+
+  test("recadre l'art du premier Panneau en couverture, ancré en bas, sans fondu", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLAccueil(page, serveur)
+
+    const styles = await stylesDeLImage(
+      imageDuPanneau(page, PRODUIT_EN_MISE_EN_AVANT)
+    )
+    expect(styles.objectFit).toBe("cover")
+    expect(styles.objectPosition).toMatch(/bottom|100%/)
+    expect(styles.mixBlendMode).toBe("normal")
   })
 
   test("garde la hauteur et la copie d'un Panneau sans art", async ({
@@ -127,6 +163,20 @@ test.describe("le Panneau en Mise en avant", () => {
       const boite = await boiteDeLImageDuPremierPanneau(page)
       expect(boite.hauteur).toBeGreaterThan(0)
       expect(boite.largeur).toBeGreaterThan(0)
+    })
+
+    test("montre le Produit entier, centré et fondu dans le champ", async ({
+      page,
+      serveur,
+    }) => {
+      await ouvrirLAccueil(page, serveur)
+
+      const styles = await stylesDeLImage(
+        imageDuPanneau(page, PRODUIT_EN_MISE_EN_AVANT)
+      )
+      expect(styles.objectFit).toBe("contain")
+      expect(styles.objectPosition).toMatch(/center|50% 50%/)
+      expect(styles.mixBlendMode).toBe("multiply")
     })
   })
 })
