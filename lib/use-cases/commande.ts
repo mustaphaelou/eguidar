@@ -1,4 +1,9 @@
-import { declarerApresEcriture, type PlanCatalogue } from "@/lib/apres-ecriture"
+import {
+  declarerApresEcriture,
+  type PlanCatalogue,
+  type PlanCommande,
+} from "@/lib/apres-ecriture"
+import type { OrderEmailSnapshot } from "@/lib/automations/charge"
 import { enregistrerFaits } from "@/lib/automations/evenements"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import {
@@ -24,6 +29,10 @@ import {
   type JournalEffetsPostCommit,
 } from "@/lib/use-cases/mutation-squelette"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
+import {
+  TRANSITIONS_ADMINISTRATION,
+  TRANSITIONS_TOUTES_VOIES,
+} from "@/lib/statut-de-commande"
 
 export interface OutOfStockItem {
   productName: string
@@ -216,6 +225,147 @@ export async function écrireLeStock(
     plans.flatMap(({ plan }) => plan.faits)
   )
   return { plans }
+}
+
+export interface ArticleDeCommande {
+  variantId: string | null
+  productName: string
+  variantName: string
+  price: number
+  quantity: number
+}
+
+export interface CommandeEmailisable {
+  id: string
+  total: number
+  shippingFee: number
+  totalPayable: number
+  cityName: string
+  address: string
+  phone: string
+  items: readonly ArticleDeCommande[]
+}
+
+export interface CommandeTransitionnable extends CommandeEmailisable {
+  status: OrderStatus
+  user: { email: string }
+}
+
+export type OrigineDeTransition = "administration" | "retour"
+
+export interface DemandeDeTransition {
+  commande: CommandeTransitionnable
+  cible: OrderStatus
+  acteurId: string
+  origine: OrigineDeTransition
+  changedAt?: Date
+}
+
+export interface TransitionEffectuee {
+  commande: CommandeTransitionnable
+  plan: PlanCommande
+  ecriture: EcritureStock
+}
+
+const TRANSITIONS_PAR_ORIGINE: Readonly<
+  Record<
+    OrigineDeTransition,
+    Readonly<Record<OrderStatus, readonly OrderStatus[]>>
+  >
+> = {
+  administration: TRANSITIONS_ADMINISTRATION,
+  retour: TRANSITIONS_TOUTES_VOIES,
+}
+
+export function toOrderEmailSnapshot(
+  commande: CommandeEmailisable,
+  userEmail: string
+): OrderEmailSnapshot {
+  return {
+    userEmail,
+    orderId: commande.id,
+    items: commande.items.map((item) => ({
+      productName: item.productName,
+      variantName: item.variantName,
+      price: item.price,
+      quantity: item.quantity,
+    })),
+    total: commande.total,
+    shippingFee: commande.shippingFee,
+    totalPayable: commande.totalPayable,
+    cityName: commande.cityName,
+    address: commande.address,
+    phone: commande.phone,
+  }
+}
+
+export async function effectuerLaTransition(
+  tx: Prisma.TransactionClient,
+  demande: DemandeDeTransition
+): Promise<TransitionEffectuee> {
+  const { commande, cible, acteurId, origine } = demande
+  const transitions = TRANSITIONS_PAR_ORIGINE[origine]
+  if (!transitions[commande.status].includes(cible)) {
+    throw new InvalidOrderTransitionError(commande.status, cible)
+  }
+
+  const changedAt = demande.changedAt ?? new Date()
+  const revendiquee = await tx.order.updateMany({
+    where: { id: commande.id, status: commande.status },
+    data:
+      cible === "delivered"
+        ? { status: cible, deliveredAt: changedAt }
+        : { status: cible },
+  })
+  if (revendiquee.count === 0) {
+    throw new InvalidOrderTransitionError(commande.status, cible)
+  }
+
+  if (cible === "delivered") {
+    await tx.payment.create({
+      data: {
+        orderId: commande.id,
+        amount: commande.totalPayable,
+        mode: "cash_on_delivery",
+        collectedAt: changedAt,
+        recordedById: acteurId,
+      },
+    })
+  }
+
+  await tx.orderStatusChange.create({
+    data: {
+      orderId: commande.id,
+      fromStatus: commande.status,
+      toStatus: cible,
+      changedAt,
+      actorId: acteurId,
+    },
+  })
+
+  const mouvements =
+    cible === "cancelled"
+      ? commande.items.flatMap((item) =>
+          item.variantId
+            ? [reapprovisionner(item.variantId, item.quantity)]
+            : []
+        )
+      : []
+  const ecriture = await écrireLeStock(tx, mouvements)
+
+  const miseAJour = await tx.order.findUniqueOrThrow({
+    where: { id: commande.id },
+    include: { items: true, user: { select: { email: true } } },
+  })
+
+  const plan = declarerApresEcriture("commande.statut.changee", {
+    commandeId: commande.id,
+    snapshot: toOrderEmailSnapshot(miseAJour, miseAJour.user.email),
+    statut: cible,
+  })
+  await enregistrerFaits(tx, plan.faits)
+
+  return { commande: miseAJour, plan, ecriture }
 }
 
 export async function exécuterStock(
