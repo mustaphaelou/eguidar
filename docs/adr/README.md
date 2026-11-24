@@ -91,6 +91,7 @@ qu'elle ne tient pas et l'ADR qui l'a décidé (ADR-0058).
 | [0021](0021-total-a-payer-persiste.md) | Total à payer is a persisted fact of the Commande | |
 | [0055](0055-le-retour-l-encaissement-et-le-remboursement-sont-trois-faits-distincts.md) | Le Retour, l'Encaissement et le Remboursement sont trois faits distincts | |
 | [0056](0056-le-chiffre-d-affaires-lit-les-encaissements-et-les-remboursements.md) | Le chiffre d'affaires lit les Encaissements et les Remboursements | ★ |
+| [0067](0067-une-transition-de-statut-a-un-seul-proprietaire.md) | Une Transition de statut a un seul propriétaire, et il vit dans le module Commande | |
 
 ### Interface et navigation
 

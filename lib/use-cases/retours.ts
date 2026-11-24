@@ -1,7 +1,6 @@
 import { z } from "zod"
 
-import { declarerApresEcriture, type PlanCommande } from "@/lib/apres-ecriture"
-import { enregistrerFaits } from "@/lib/automations/evenements"
+import type { PlanCommande } from "@/lib/apres-ecriture"
 import { prisma } from "@/lib/db"
 import type {
   ReturnStatus,
@@ -19,13 +18,11 @@ import {
   type MotifRetour,
   type QuantiteCommandee,
 } from "@/lib/retours"
-import type { OrderEmailSnapshot } from "@/lib/emails"
-import { peutTransitionner } from "@/lib/statut-de-commande"
 import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
 import {
   écrireLeStock,
+  effectuerLaTransition,
   exécuterStock,
-  InvalidOrderTransitionError,
   reapprovisionner,
   verrouillerCommande,
   type EffetsStock,
@@ -40,42 +37,6 @@ import { uniqueViolationIndex } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
 const INDEX_DEMANDE_OUVERTE = "Return_orderId_ouvert_key"
-
-function toOrderEmailSnapshot(
-  commande: {
-    id: string
-    cityName: string
-    address: string
-    phone: string
-    total: number
-    shippingFee: number
-    totalPayable: number
-    items: {
-      productName: string
-      variantName: string
-      price: number
-      quantity: number
-    }[]
-  },
-  userEmail: string
-): OrderEmailSnapshot {
-  return {
-    userEmail,
-    orderId: commande.id,
-    items: commande.items.map((article) => ({
-      productName: article.productName,
-      variantName: article.variantName,
-      price: article.price,
-      quantity: article.quantity,
-    })),
-    total: commande.total,
-    shippingFee: commande.shippingFee,
-    totalPayable: commande.totalPayable,
-    cityName: commande.cityName,
-    address: commande.address,
-    phone: commande.phone,
-  }
-}
 
 export interface LigneDeclaree {
   orderItemId: string
@@ -596,35 +557,15 @@ export async function recevoirRetour(
 
     let planDeCloture: PlanCommande | null = null
     if (toutesLesUnitesSontRevenues(quantitesCommandees, quantitesRecues)) {
-      if (!peutTransitionner(commande.status, "returned")) {
-        throw new InvalidOrderTransitionError(commande.status, "returned")
-      }
-      const fermeture = await tx.order.updateMany({
-        where: { id: commande.id, status: commande.status },
-        data: { status: "returned" },
-      })
-      if (fermeture.count === 0) {
-        throw new InvalidOrderTransitionError(commande.status, "returned")
-      }
-      await tx.orderStatusChange.create({
-        data: {
-          orderId: commande.id,
-          fromStatus: commande.status,
-          toStatus: "returned",
+      planDeCloture = (
+        await effectuerLaTransition(tx, {
+          commande,
+          cible: "returned",
+          acteurId: reception.actorId,
+          origine: "retour",
           changedAt: maintenant,
-          actorId: reception.actorId,
-        },
-      })
-      const commandeClosee = await tx.order.findUniqueOrThrow({
-        where: { id: commande.id },
-        include: { items: true },
-      })
-      planDeCloture = declarerApresEcriture("commande.statut.changee", {
-        commandeId: commande.id,
-        snapshot: toOrderEmailSnapshot(commandeClosee, commande.user.email),
-        statut: "returned",
-      })
-      await enregistrerFaits(tx, planDeCloture.faits)
+        })
+      ).plan
     }
 
     return {

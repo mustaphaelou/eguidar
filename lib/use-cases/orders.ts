@@ -7,9 +7,7 @@ import {
 } from "@/lib/commande-listing"
 import { prisma } from "@/lib/db"
 import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
-import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
-import { transitionsDisponibles } from "@/lib/statut-de-commande"
 import { lirePanierClient } from "@/lib/panier"
 import {
   deliveryAddressField,
@@ -22,12 +20,12 @@ import {
 } from "@/lib/use-cases/devis"
 import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
 import {
+  effectuerLaTransition,
   écrireLeStock,
   type EffetsStock,
   exécuterStock,
-  InvalidOrderTransitionError,
-  reapprovisionner,
   reserver,
+  toOrderEmailSnapshot,
   verrouillerCommande,
 } from "@/lib/use-cases/commande"
 import {
@@ -178,22 +176,6 @@ function parseCheckoutInput(input: CheckoutInput): CheckoutInput {
   return result.data
 }
 
-type OrderWithItems = {
-  id: string
-  cityName: string
-  address: string
-  phone: string
-  total: number
-  shippingFee: number
-  totalPayable: number
-  items: {
-    productName: string
-    variantName: string
-    price: number
-    quantity: number
-  }[]
-}
-
 type CommandeAvecArgent = {
   payments: { amount: number; refunds: { amount: number }[] }[]
 }
@@ -231,28 +213,6 @@ const SELECT_ARGENT = {
     },
   },
 } as const
-
-function toOrderEmailSnapshot(
-  order: OrderWithItems,
-  userEmail: string
-): OrderEmailSnapshot {
-  return {
-    userEmail,
-    orderId: order.id,
-    items: order.items.map((item) => ({
-      productName: item.productName,
-      variantName: item.variantName,
-      price: item.price,
-      quantity: item.quantity,
-    })),
-    total: order.total,
-    shippingFee: order.shippingFee,
-    totalPayable: order.totalPayable,
-    cityName: order.cityName,
-    address: order.address,
-    phone: order.phone,
-  }
-}
 
 async function verrouillerPanierClient(
   tx: Prisma.TransactionClient,
@@ -394,7 +354,7 @@ export async function updateOrderStatus(
 ) {
   const effects = avecSurcharges(defaultOrderEffects, surcharges?.email)
 
-  const { updated, plan, ecriture } = await prisma.$transaction(async (tx) => {
+  const { commande, plan, ecriture } = await prisma.$transaction(async (tx) => {
     if (!(await verrouillerCommande(tx, orderId))) {
       throw new OrderNotFoundError()
     }
@@ -403,68 +363,18 @@ export async function updateOrderStatus(
       include: { items: true, user: { select: { email: true } } },
     })
     if (!commande) throw new OrderNotFoundError()
-    if (!transitionsDisponibles(commande.status).includes(nextStatus)) {
-      throw new InvalidOrderTransitionError(commande.status, nextStatus)
-    }
 
-    const changedAt = new Date()
-    const claimed = await tx.order.updateMany({
-      where: { id: orderId, status: commande.status },
-      data:
-        nextStatus === "delivered"
-          ? { status: nextStatus, deliveredAt: changedAt }
-          : { status: nextStatus },
+    return effectuerLaTransition(tx, {
+      commande,
+      cible: nextStatus,
+      acteurId: actorId,
+      origine: "administration",
     })
-    if (claimed.count === 0) {
-      throw new InvalidOrderTransitionError(commande.status, nextStatus)
-    }
-
-    if (nextStatus === "delivered") {
-      await tx.payment.create({
-        data: {
-          orderId,
-          amount: commande.totalPayable,
-          mode: "cash_on_delivery",
-          collectedAt: changedAt,
-          recordedById: actorId,
-        },
-      })
-    }
-
-    await tx.orderStatusChange.create({
-      data: {
-        orderId,
-        fromStatus: commande.status,
-        toStatus: nextStatus,
-        changedAt,
-        actorId,
-      },
-    })
-
-    const mouvements =
-      nextStatus === "cancelled"
-        ? commande.items
-            .filter((item) => item.variantId)
-            .map((item) => reapprovisionner(item.variantId!, item.quantity))
-        : []
-    const ecriture = await écrireLeStock(tx, mouvements)
-
-    const updated = await tx.order.findUniqueOrThrow({
-      where: { id: orderId },
-      include: { items: true },
-    })
-    const plan = declarerApresEcriture("commande.statut.changee", {
-      commandeId: orderId,
-      snapshot: toOrderEmailSnapshot(updated, commande.user.email),
-      statut: nextStatus,
-    })
-    await enregistrerFaits(tx, plan.faits)
-    return { updated, plan, ecriture }
   })
 
   await exécuterStock(ecriture, surcharges?.stock ?? {})
   await executerCommande(plan, effects)
-  return updated
+  return commande
 }
 
 export async function getAdminOrder(
