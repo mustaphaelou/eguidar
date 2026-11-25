@@ -1,23 +1,22 @@
 export const APPARITION = [
-  "[transition:opacity_900ms_cubic-bezier(0.455,0.03,0.515,0.955),translate_700ms_cubic-bezier(0.455,0.03,0.515,0.955)]",
+  "transition-opacity duration-300 ease-out",
   "group-data-[reveal-etat=attente]/panneau:opacity-0",
-  "group-data-[reveal-etat=attente]/panneau:translate-y-[30px]",
-  "motion-reduce:transition-none",
+  "motion-safe:transition-[opacity,translate] motion-safe:duration-[420ms] motion-safe:ease-out",
+  "motion-safe:group-data-[reveal-etat=attente]/panneau:translate-y-4",
 ].join(" ")
 
 export const APPARITION_FONDU = [
-  "[transition:opacity_900ms_cubic-bezier(0.455,0.03,0.515,0.955)]",
+  "transition-opacity duration-[420ms] ease-out",
   "group-data-[reveal-etat=attente]/panneau:opacity-0",
-  "motion-reduce:transition-none",
 ].join(" ")
 
 export const RETARDS = [
   "delay-0",
+  "delay-[50ms]",
+  "delay-[100ms]",
   "delay-[150ms]",
-  "delay-[300ms]",
-  "delay-[450ms]",
-  "delay-[600ms]",
-  "delay-[750ms]",
+  "delay-[200ms]",
+  "delay-[250ms]",
 ] as const
 
 export function retard(index: number): string {

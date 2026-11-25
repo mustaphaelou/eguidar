@@ -8,36 +8,20 @@ import { APPARITION, APPARITION_FONDU, retard } from "@/lib/apparition"
 import type { PanneauProduit } from "@/lib/accueil-panneaux"
 import { cn } from "@/lib/utils"
 
-export const TITRE_HERO = [
-  "text-[32px] leading-[1.125] tracking-[0.002em]",
-  "sm:text-[48px] sm:leading-[1.0835] sm:tracking-[-0.002em]",
-  "lg:text-[56px] lg:leading-[1.0714] lg:tracking-[-0.005em]",
-].join(" ")
+export const TITRE_HERO = "text-titre-hero"
 
-export const SURTITRE_HERO = [
-  "text-[19px] leading-[1.2105] tracking-[0.012em]",
-  "sm:text-[24px] sm:leading-[1.1667] sm:tracking-[0.009em]",
-  "lg:text-[28px] lg:leading-[1.1429] lg:tracking-[0.007em]",
-].join(" ")
+export const SURTITRE_HERO = "text-surtitre-hero"
 
-export const TITRE_PROMO = [
-  "text-[32px] leading-[1.125] tracking-[0.002em]",
-  "xl:text-[40px] xl:leading-[1.1]",
-].join(" ")
+export const TITRE_PROMO = "text-titre-promo"
 
-export const SURTITRE_PROMO = [
-  "text-[19px] leading-[1.2105] tracking-[0.012em]",
-  "xl:text-[21px] xl:leading-[1.1905] xl:tracking-[0.011em]",
-].join(" ")
+export const SURTITRE_PROMO = "text-surtitre-promo"
 
-export const CALLOUT = [
-  "text-[14px] leading-[1.2858] tracking-[-0.016em]",
-  "sm:text-[17px] sm:leading-[1.2354] sm:tracking-[-0.022em]",
-].join(" ")
+export const CALLOUT = "text-callout tabular-nums"
 
 export const HAUTEUR_PLEINE_LARGEUR =
-  "min-h-[500px] sm:min-h-[570px] lg:min-h-[clamp(640px,52vw,820px)]"
-export const HAUTEUR_DUO = "min-h-[500px] sm:min-h-[490px] lg:min-h-[580px]"
+  "min-block-[clamp(29.5rem,18rem+36vw,46rem)]"
+
+export const HAUTEUR_DUO = "min-block-[clamp(29.5rem,24rem+12vw,34.5rem)]"
 
 export const GOUTTIERE_PANNEAUX = "gap-3"
 
@@ -59,8 +43,8 @@ export const CHAMP: Record<
   },
   noir: {
     panneau: "bg-foreground text-background",
-    second: "text-background/70",
-    lien: "text-[#2997ff]",
+    second: "text-encre-sombre-secondaire",
+    lien: "text-link-sombre",
   },
 }
 
@@ -84,7 +68,7 @@ function ArtDuPanneau({
   return (
     <div
       className={cn(
-        "pointer-events-none relative min-h-[200px] w-full flex-1 overflow-hidden",
+        "pointer-events-none relative w-full flex-1 overflow-clip min-block-[200px]",
         APPARITION_FONDU,
         retard(index)
       )}
@@ -97,7 +81,7 @@ function ArtDuPanneau({
           sizes={sizes}
           loading={immediat ? "eager" : undefined}
           className={cn(
-            "object-cover object-bottom",
+            "object-cover object-bottom motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover/panneau:scale-[1.02]",
             pleineLargeur && "lg:object-contain lg:object-center",
             pleineLargeur && melangeSurFond && "lg:mix-blend-multiply"
           )}
@@ -119,12 +103,13 @@ function BoutonAcheter({
       render={<Link href={panneau.href} />}
       aria-label={`Acheter, ${panneau.titre}`}
       className={cn(
+        "rounded-full motion-safe:active:scale-[0.97]",
         taille === "hero"
-          ? "h-[41px] rounded-full px-[22px] text-[17px] leading-[1.1765] tracking-[-0.022em] transition-none"
-          : "h-[33px] rounded-full px-4 text-[14px] leading-[1.2858] tracking-[-0.016em] transition-none"
+          ? "px-6 text-body leading-none tracking-[-0.022em] min-block-11"
+          : "zone-tactile px-4 text-sm leading-none tracking-[-0.016em] min-block-9"
       )}
     >
-      Acheter
+      <span className="etiquette-centree">Acheter</span>
     </Button>
   )
 }
@@ -144,13 +129,20 @@ function LienChevron({
     <Link
       href={href}
       className={cn(
-        "group/lien text-[17px] leading-[1.2354] tracking-[-0.022em]",
+        "group/lien zone-tactile inline-flex items-center gap-1 text-body leading-[1.2354] tracking-[-0.022em] transition-opacity duration-150 ease-out active:opacity-70",
         CHAMP[champ].lien,
         className
       )}
     >
-      <span className="group-hover/lien:underline">{children}</span>
-      <span aria-hidden="true"> ›</span>
+      <span className="[@media(hover:hover)_and_(pointer:fine)]:group-hover/lien:underline">
+        {children}
+      </span>
+      <span
+        aria-hidden="true"
+        className="inline-block motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover/lien:translate-x-0.5"
+      >
+        ›
+      </span>
     </Link>
   )
 }
@@ -170,38 +162,46 @@ export function PanneauPleineLargeur({
 }) {
   const c = CHAMP[champ]
   const Titre = premier ? "h1" : "h2"
+  const avecImage = Boolean(panneau.produit.image)
 
   return (
     <ApparitionPanneau
       premier={premier}
       className={cn(
-        "flex w-full flex-col text-center",
+        "panneau-cliquable flex w-full flex-col gap-6 overflow-clip text-center",
         c.panneau,
         HAUTEUR_PLEINE_LARGEUR,
-        !panneau.produit.image && "justify-center"
+        !avecImage && "justify-center"
       )}
     >
-      <div className="mx-auto flex w-full flex-col items-center px-6 pt-10 sm:pt-14">
+      <div
+        className={cn(
+          "mx-auto flex w-full flex-col items-center gap-3 px-6",
+          avecImage
+            ? "pbs-[clamp(2.5rem,1.5rem+2.5vw,3.5rem)]"
+            : "py-[clamp(2.5rem,1.5rem+2.5vw,3.5rem)]"
+        )}
+      >
         <Titre className={cn(TITRE_HERO, "font-semibold", APPARITION)}>
-          {panneau.titre}
+          <Link href={panneau.href} className="panneau-lien">
+            {panneau.titre}
+          </Link>
         </Titre>
         <p
           className={cn(
             SURTITRE_HERO,
             c.second,
-            "mt-3 max-w-[760px]",
+            "max-w-[44ch]",
             APPARITION,
             retard(1)
           )}
         >
           {panneau.surtitre}
         </p>
-        <p className={cn(CALLOUT, "mt-4", APPARITION, retard(2))}>
-          {panneau.callout}
-        </p>
+        <p className={cn(CALLOUT, APPARITION, retard(2))}>{panneau.callout}</p>
         <div
           className={cn(
-            "mt-[17px] flex flex-wrap items-center justify-center gap-x-[17px] gap-y-3",
+            "mbs-1 flex flex-wrap items-center justify-center gap-x-5 gap-y-3",
             APPARITION,
             retard(3)
           )}
@@ -233,35 +233,43 @@ export function PanneauDuo({
   champ: Champ
 }) {
   const c = CHAMP[champ]
+  const avecImage = Boolean(panneau.produit.image)
 
   return (
     <ApparitionPanneau
       className={cn(
-        "flex w-full flex-col text-center",
+        "panneau-cliquable flex w-full flex-col gap-5 overflow-clip text-center",
         c.panneau,
         HAUTEUR_DUO,
-        !panneau.produit.image && "justify-center"
+        !avecImage && "justify-center"
       )}
     >
-      <div className="mx-auto flex min-h-[200px] w-full flex-col items-center px-5 pt-9 pb-4 sm:min-h-[225px] sm:pt-11 sm:pb-6">
+      <div
+        className={cn(
+          "mx-auto flex w-full flex-col items-center gap-2.5 px-5",
+          avecImage
+            ? "pbs-[clamp(2rem,1.5rem+1.5vw,2.75rem)]"
+            : "py-[clamp(2rem,1.5rem+1.5vw,2.75rem)]"
+        )}
+      >
         <h3 className={cn(TITRE_PROMO, "font-semibold", APPARITION)}>
-          {panneau.titre}
+          <Link href={panneau.href} className="panneau-lien">
+            {panneau.titre}
+          </Link>
         </h3>
         <p
           className={cn(
             SURTITRE_PROMO,
             c.second,
-            "mt-2",
+            "max-w-[36ch]",
             APPARITION,
             retard(1)
           )}
         >
           {panneau.surtitre}
         </p>
-        <p className={cn(CALLOUT, "mt-3", APPARITION, retard(2))}>
-          {panneau.callout}
-        </p>
-        <div className={cn("mt-3", APPARITION, retard(3))}>
+        <p className={cn(CALLOUT, APPARITION, retard(2))}>{panneau.callout}</p>
+        <div className={cn("mbs-1", APPARITION, retard(3))}>
           <BoutonAcheter panneau={panneau} taille="duo" />
         </div>
       </div>

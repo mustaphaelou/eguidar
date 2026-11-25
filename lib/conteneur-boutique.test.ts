@@ -11,6 +11,9 @@ const SURFACES = [
   "components/storefront/global-nav-bar.tsx",
   "components/storefront/apercu-du-panier-surface.tsx",
   "components/storefront/footer.tsx",
+  "components/storefront/apple-breadcrumb.tsx",
+  "components/storefront/bande-categories.tsx",
+  "components/storefront/barre-d-achat.tsx",
 ] as const
 
 describe("Conteneur de la boutique — une seule mesure", () => {

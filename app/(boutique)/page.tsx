@@ -54,7 +54,7 @@ async function HomeContent() {
         <div
           key={rangee.map((panneau) => panneau.produit.id).join("-")}
           className={cn(
-            "grid grid-cols-1 px-3 sm:grid-cols-2",
+            "grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] px-3",
             GOUTTIERE_PANNEAUX
           )}
         >
@@ -85,7 +85,7 @@ function HomeSkeleton() {
         <div
           key={rang}
           className={cn(
-            "grid grid-cols-1 px-3 sm:grid-cols-2",
+            "grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] px-3",
             GOUTTIERE_PANNEAUX
           )}
         >
@@ -97,7 +97,7 @@ function HomeSkeleton() {
           ))}
         </div>
       ))}
-      <div className="h-80 animate-pulse bg-muted" />
+      <div className="animate-pulse bg-muted min-block-80" />
     </div>
   )
 }

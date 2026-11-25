@@ -105,12 +105,14 @@ export function ProductBuyBox({
 
   if (variants.length === 0) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-[28px] font-semibold">{formatPrice(minPrice)}</p>
+      <div className="flex flex-col gap-4">
+        <p className="text-prix-fiche font-semibold tabular-nums">
+          {formatPrice(minPrice)}
+        </p>
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <span
             aria-hidden="true"
-            className="size-2 rounded-full bg-destructive"
+            className="size-2 shrink-0 rounded-full bg-destructive"
           />
           Rupture de stock
         </p>
@@ -118,21 +120,23 @@ export function ProductBuyBox({
           disabled
           variant="secondary"
           size="xl"
-          className="w-full rounded-full text-body lg:h-9"
+          className="w-full rounded-full text-body min-block-12 lg:min-block-11"
         >
-          Produit indisponible
+          <span className="etiquette-centree">Produit indisponible</span>
         </Button>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       {variants.length > 1 ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {variants.length <= MAX_CHIPS ? (
             <>
-              <Label className="text-[14px]">Variante</Label>
+              <Label className="text-sm font-medium text-foreground">
+                Variante
+              </Label>
               <div
                 className="flex flex-wrap gap-2"
                 role="group"
@@ -140,29 +144,33 @@ export function ProductBuyBox({
               >
                 {variants.map((variant) => {
                   const epuisee = variant.stock === 0
+                  const actif = variant.id === variantId
                   return (
                     <button
                       key={variant.id}
                       type="button"
                       onClick={() => setVariantId(variant.id)}
-                      aria-pressed={variant.id === variantId}
+                      aria-pressed={actif}
                       aria-label={
                         epuisee
                           ? `${variant.name} — rupture de stock`
                           : undefined
                       }
                       className={cn(
-                        "rounded-full border px-4 py-1.5 text-[14px] transition-colors",
-                        variant.id === variantId
+                        "rounded-full border px-4 py-2 text-sm leading-none transition-[color,background-color,border-color] duration-150 ease-out min-block-11 motion-safe:transition-[color,background-color,border-color,transform] motion-safe:active:scale-[0.97]",
+                        actif
                           ? "border-foreground bg-foreground text-background"
-                          : "border-foreground/15 text-muted-foreground hover:border-foreground hover:text-foreground",
+                          : "border-bordure-subtile text-muted-foreground active:border-foreground active:text-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:border-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground",
                         epuisee && "border-dashed",
-                        epuisee &&
-                          variant.id !== variantId &&
-                          "text-muted-foreground/60"
+                        epuisee && !actif && "text-encre-attenuee"
                       )}
                     >
-                      <span className={cn(epuisee && "line-through")}>
+                      <span
+                        className={cn(
+                          "etiquette-centree",
+                          epuisee && "line-through"
+                        )}
+                      >
                         {variant.name}
                       </span>
                     </button>
@@ -172,14 +180,17 @@ export function ProductBuyBox({
             </>
           ) : (
             <>
-              <Label htmlFor="variant" className="text-[14px]">
+              <Label
+                htmlFor="variant"
+                className="text-sm font-medium text-foreground"
+              >
                 Variante
               </Label>
               <Select
                 value={variantId}
                 onValueChange={(value) => setVariantId(value ?? "")}
               >
-                <SelectTrigger id="variant" className="w-full">
+                <SelectTrigger id="variant" className="w-full min-block-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -198,18 +209,19 @@ export function ProductBuyBox({
         </div>
       ) : null}
 
-      <p className="text-[28px] font-semibold">{prix}</p>
-
-      <p className="text-sm leading-[1.4286] tracking-[-0.016em] text-muted-foreground">
-        TVA 20% incluse · Paiement à la livraison
-      </p>
+      <div className="flex flex-col gap-1.5">
+        <p className="text-prix-fiche font-semibold tabular-nums">{prix}</p>
+        <p className="text-sm leading-[1.4286] tracking-[-0.016em] text-muted-foreground">
+          TVA 20% incluse · Paiement à la livraison
+        </p>
+      </div>
 
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         {outOfStock ? (
           <>
             <span
               aria-hidden="true"
-              className="size-2 rounded-full bg-destructive"
+              className="size-2 shrink-0 rounded-full bg-destructive"
             />
             {tousEpuises ? "Rupture de stock" : "Variante en rupture de stock"}
           </>
@@ -217,36 +229,52 @@ export function ProductBuyBox({
           <>
             <span
               aria-hidden="true"
-              className="size-2 rounded-full bg-emerald-500"
+              className="size-2 shrink-0 rounded-full bg-succes-point"
             />
-            En stock ({stock} disponible{stock > 1 ? "s" : ""})
-            {freeShipping ? " · Livraison offerte" : ""}
+            <span className="tabular-nums">
+              En stock ({stock} disponible{stock > 1 ? "s" : ""})
+              {freeShipping ? " · Livraison offerte" : ""}
+            </span>
           </>
         )}
       </p>
 
-      <Button
-        ref={buyButtonRef}
-        size="xl"
-        variant={outOfStock ? "secondary" : "default"}
-        onClick={lancerAjout}
-        disabled={outOfStock || enAttente}
-        className="w-full rounded-full text-body lg:h-9"
-      >
-        {enAttente
-          ? "Ajout…"
-          : tousEpuises
-            ? "Produit indisponible"
-            : outOfStock
-              ? "Variante indisponible"
-              : "Ajouter au panier"}
-      </Button>
-      {ajoute && <p className="text-sm text-emerald-700">Ajouté au panier</p>}
-      {messageRefus && (
-        <p role="alert" className="text-sm text-destructive">
-          {messageRefus}
-        </p>
-      )}
+      <div className="flex flex-col gap-2.5">
+        <Button
+          ref={buyButtonRef}
+          size="xl"
+          variant={outOfStock ? "secondary" : "default"}
+          onClick={lancerAjout}
+          disabled={outOfStock || enAttente}
+          className="w-full rounded-full text-body min-block-12 motion-safe:active:scale-[0.98] lg:min-block-11"
+        >
+          <span className="etiquette-centree">
+            {enAttente
+              ? "Ajout…"
+              : tousEpuises
+                ? "Produit indisponible"
+                : outOfStock
+                  ? "Variante indisponible"
+                  : "Ajouter au panier"}
+          </span>
+        </Button>
+        {ajoute && (
+          <p
+            role="status"
+            className="rounded-xl bg-succes-fond px-3.5 py-2.5 text-sm font-medium text-succes"
+          >
+            Ajouté au panier
+          </p>
+        )}
+        {messageRefus && (
+          <p
+            role="alert"
+            className="rounded-xl bg-destructif-fond px-3.5 py-2.5 text-sm font-medium text-destructive"
+          >
+            {messageRefus}
+          </p>
+        )}
+      </div>
 
       <BarreDAchat
         visible={barVisible}

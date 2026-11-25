@@ -50,7 +50,10 @@ describe("la base de la feuille de style", () => {
   })
 
   it("laisse la Barre d'achat et les modales demander l'inset inférieur de la zone sûre dans deux règles distinctes", () => {
-    const porteurs = declarationsDe(feuille, "padding-bottom")
+    const porteurs = [
+      ...declarationsDe(feuille, "padding-block-end"),
+      ...declarationsDe(feuille, "padding-bottom"),
+    ]
       .filter((declaration) =>
         declaration.value.includes("env(safe-area-inset-bottom)")
       )

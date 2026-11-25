@@ -4,6 +4,8 @@ import {
   attendreLaPagePrete,
   attendreLeCompteurDuPanier,
 } from "./harnais/attente"
+import { rapportDeContraste } from "./harnais/contraste"
+import { NOM_DE_LA_FICHE_DE_PRODUCTION } from "./harnais/fiche-de-production"
 import type { ServeurDeSonde } from "./harnais/serveur"
 import { expect, test } from "./fixtures/sonde"
 
@@ -178,5 +180,82 @@ test.describe("le Panneau en Mise en avant", () => {
       expect(styles.objectPosition).toMatch(/center|50% 50%/)
       expect(styles.mixBlendMode).toBe("multiply")
     })
+
+    test("étend un Panneau duo impair sur toute la largeur sans trou vide", async ({
+      page,
+      serveur,
+    }) => {
+      await ouvrirLAccueil(page, serveur)
+
+      const panneauImpair = panneauDuProduit(
+        page,
+        NOM_DE_LA_FICHE_DE_PRODUCTION
+      )
+      await panneauImpair.scrollIntoViewIfNeeded()
+      const boite = await panneauImpair.boundingBox()
+      expect(boite).not.toBeNull()
+      expect(boite!.width).toBeGreaterThanOrEqual(1200)
+    })
+  })
+
+  test("navigue au clic sur le Panneau entier et garde « Tout le catalogue » indépendant", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLAccueil(page, serveur)
+
+    const panneauNoir = panneauDuProduit(page, PRODUIT_SANS_ART)
+    await panneauNoir.scrollIntoViewIfNeeded()
+    const boiteSurtitre = await panneauNoir
+      .getByText("Le S Pen, et un zoom qui va jusqu'à 100×.")
+      .boundingBox()
+    expect(boiteSurtitre).not.toBeNull()
+    await page.mouse.click(
+      boiteSurtitre!.x + boiteSurtitre!.width / 2,
+      boiteSurtitre!.y + boiteSurtitre!.height / 2
+    )
+    await expect(page).toHaveURL(/\/produit\/samsung-galaxy-s24-ultra$/)
+
+    await ouvrirLAccueil(page, serveur)
+    await page.getByRole("link", { name: "Tout le catalogue" }).click()
+    await expect(page).toHaveURL(/\/produits$/)
+  })
+
+  test("respecte un contraste >= 4,5:1 sur le texte secondaire d'un Panneau noir", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLAccueil(page, serveur)
+
+    const surtitre = panneauDuProduit(page, PRODUIT_SANS_ART).getByText(
+      "Le S Pen, et un zoom qui va jusqu'à 100×."
+    )
+    await surtitre.scrollIntoViewIfNeeded()
+    const ratio = await rapportDeContraste(surtitre)
+    expect(ratio).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test("laisse les Panneaux immédiatement lisibles et sans translation sous mouvement réduit", async ({
+    page,
+    serveur,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await ouvrirLAccueil(page, serveur)
+
+    const titre = panneauDuProduit(page, PRODUIT_EN_DUO).getByRole("heading", {
+      name: PRODUIT_EN_DUO,
+      exact: true,
+    })
+    await titre.scrollIntoViewIfNeeded()
+
+    const styles = await titre.evaluate((element) => {
+      const courant = getComputedStyle(element)
+      return {
+        opacity: courant.opacity,
+        translate: courant.translate,
+      }
+    })
+    expect(styles.opacity).toBe("1")
+    expect(styles.translate).toBe("none")
   })
 })

@@ -86,6 +86,32 @@ test.describe("la Barre d'achat de la fiche Produit", () => {
     await expect(page.locator("footer")).toBeInViewport()
     await expect(barreDAchat(page)).toHaveAttribute("aria-hidden", "true")
   })
+
+  test("17. met à jour le nom de la variante visible dans la Barre d'achat", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrirLaFiche(page, serveur.origine)
+    await page.getByRole("button", { name: "256 Go", exact: true }).click()
+    await defilerAuDelaDeLActionDAchat(page)
+
+    await expect(barreDAchat(page)).toHaveAttribute("aria-hidden", "false")
+    await expect(barreDAchat(page)).toContainText("256 Go")
+    await expect(boutonDeLaBarre(page)).toHaveAccessibleName(/256 Go/)
+  })
+
+  test("18. s'efface sans glissement sous mouvement réduit", async ({
+    page,
+    serveur,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await ouvrirLaFiche(page, serveur.origine)
+
+    const transform = await barreDAchat(page).evaluate(
+      (element) => getComputedStyle(element).translate
+    )
+    expect(transform).toBe("none")
+  })
 })
 
 for (const viewport of LARGEURS_DE_TELEPHONE) {

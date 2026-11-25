@@ -146,4 +146,35 @@ describe("ProductGallery", () => {
       container.querySelector(`[aria-label="Afficher l'image 2 sur 2"]`)
     ).not.toBeNull()
   })
+
+  it("navigue entre les images par les boutons précédent/suivant et les flèches du clavier", () => {
+    render(<ProductGallery images={IMAGES} name="Produit Témoin" />)
+
+    const suivante = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Image suivante"]'
+    )!
+    const precedente = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Image précédente"]'
+    )!
+
+    act(() => suivante.click())
+    expect(container.textContent).toContain("2 / 2")
+
+    act(() => precedente.click())
+    expect(container.textContent).toContain("1 / 2")
+
+    act(() => {
+      container.firstElementChild!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
+      )
+    })
+    expect(container.textContent).toContain("2 / 2")
+
+    act(() => {
+      container.firstElementChild!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })
+      )
+    })
+    expect(container.textContent).toContain("1 / 2")
+  })
 })

@@ -7,6 +7,33 @@
   --font-sans: var(--font-sans);
   --text-body: var(--text-body);
   --text-titre-carte: var(--text-titre-carte);
+  --text-titre-hero: var(--text-titre-hero);
+  --text-titre-hero--line-height: var(--text-titre-hero--line-height);
+  --text-titre-hero--letter-spacing: var(--text-titre-hero--letter-spacing);
+  --text-surtitre-hero: var(--text-surtitre-hero);
+  --text-surtitre-hero--line-height: var(--text-surtitre-hero--line-height);
+  --text-surtitre-hero--letter-spacing: var(--text-surtitre-hero--letter-spacing);
+  --text-titre-promo: var(--text-titre-promo);
+  --text-titre-promo--line-height: var(--text-titre-promo--line-height);
+  --text-titre-promo--letter-spacing: var(--text-titre-promo--letter-spacing);
+  --text-surtitre-promo: var(--text-surtitre-promo);
+  --text-surtitre-promo--line-height: var(--text-surtitre-promo--line-height);
+  --text-surtitre-promo--letter-spacing: var(--text-surtitre-promo--letter-spacing);
+  --text-callout: var(--text-callout);
+  --text-callout--line-height: var(--text-callout--line-height);
+  --text-callout--letter-spacing: var(--text-callout--letter-spacing);
+  --text-titre-produit: var(--text-titre-produit);
+  --text-titre-produit--line-height: var(--text-titre-produit--line-height);
+  --text-titre-produit--letter-spacing: var(--text-titre-produit--letter-spacing);
+  --text-titre-section: var(--text-titre-section);
+  --text-titre-section--line-height: var(--text-titre-section--line-height);
+  --text-titre-section--letter-spacing: var(--text-titre-section--letter-spacing);
+  --text-prix-fiche: var(--text-prix-fiche);
+  --text-prix-fiche--line-height: var(--text-prix-fiche--line-height);
+  --text-prix-fiche--letter-spacing: var(--text-prix-fiche--letter-spacing);
+  --text-prix-barre: var(--text-prix-barre);
+  --text-prix-barre--line-height: var(--text-prix-barre--line-height);
+  --text-prix-barre--letter-spacing: var(--text-prix-barre--letter-spacing);
   --text-hero: var(--text-hero);
   --text-hero--line-height: var(--text-hero--line-height);
   --text-hero--letter-spacing: var(--text-hero--letter-spacing);
@@ -15,7 +42,15 @@
   --text-chiffre--letter-spacing: var(--text-chiffre--letter-spacing);
   --leading-body: var(--leading-body);
   --color-link: var(--link);
+  --color-link-sombre: var(--link-sombre);
+  --color-encre-sombre-secondaire: var(--encre-sombre-secondaire);
   --color-encre-annuaire: var(--encre-annuaire);
+  --color-encre-attenuee: var(--encre-attenuee);
+  --color-succes: var(--succes);
+  --color-succes-point: var(--succes-point);
+  --color-succes-fond: var(--succes-fond);
+  --color-destructif-fond: var(--destructif-fond);
+  --color-bordure-subtile: var(--bordure-subtile);
   --color-voile-sombre: var(--voile-sombre);
   --color-hairline: var(--hairline);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -88,7 +123,27 @@
   --input: oklch(86.5% 0 none);
   --ring: #0071e3;
   --link: oklch(52.2% 0.177 256);
+  --link-sombre: oklch(66.9% 0.181 252);
+  --encre-sombre-secondaire: color-mix(
+    in oklch,
+    var(--background) 74%,
+    transparent
+  );
   --encre-annuaire: oklch(38% 0 none);
+  --encre-attenuee: color-mix(
+    in oklch,
+    var(--muted-foreground) 65%,
+    transparent
+  );
+  --succes: oklch(46% 0.145 152);
+  --succes-point: oklch(62% 0.16 152);
+  --succes-fond: color-mix(in oklch, var(--succes) 10%, transparent);
+  --destructif-fond: color-mix(in oklch, var(--destructive) 10%, transparent);
+  --bordure-subtile: color-mix(
+    in oklch,
+    var(--foreground) 15%,
+    transparent
+  );
   --chart-1: oklch(87.9% 0.169 91.6);
   --chart-2: oklch(76.9% 0.188 70.1);
   --chart-3: oklch(66.6% 0.179 58.3);
@@ -108,6 +163,33 @@
   --leading-body: 1.471;
   --text-titre-carte: clamp(1.647rem, 0.47rem + 2.9412vw, 2.353rem);
   --text-titre-catalogue: clamp(1.75rem, 1.4rem + 1.4vw, 2.25rem);
+  --text-titre-hero: clamp(1.882rem, 1.203rem + 2.963vw, 3.294rem);
+  --text-titre-hero--line-height: 1.08;
+  --text-titre-hero--letter-spacing: -0.015em;
+  --text-surtitre-hero: clamp(1.118rem, 0.863rem + 1.111vw, 1.647rem);
+  --text-surtitre-hero--line-height: 1.17;
+  --text-surtitre-hero--letter-spacing: 0.008em;
+  --text-titre-promo: clamp(1.647rem, 1.38rem + 1.1vw, 2.353rem);
+  --text-titre-promo--line-height: 1.1;
+  --text-titre-promo--letter-spacing: -0.004em;
+  --text-surtitre-promo: clamp(1rem, 0.897rem + 0.449vw, 1.235rem);
+  --text-surtitre-promo--line-height: 1.2;
+  --text-surtitre-promo--letter-spacing: 0.011em;
+  --text-callout: clamp(0.824rem, 0.689rem + 0.588vw, 1rem);
+  --text-callout--line-height: 1.26;
+  --text-callout--letter-spacing: -0.018em;
+  --text-titre-produit: clamp(1.647rem, 1.213rem + 1.893vw, 2.353rem);
+  --text-titre-produit--line-height: 1.1;
+  --text-titre-produit--letter-spacing: -0.008em;
+  --text-titre-section: clamp(1.412rem, 1.122rem + 1.262vw, 1.882rem);
+  --text-titre-section--line-height: 1.125;
+  --text-titre-section--letter-spacing: 0.002em;
+  --text-prix-fiche: clamp(1.471rem, 1.28rem + 0.78vw, 1.765rem);
+  --text-prix-fiche--line-height: 1.15;
+  --text-prix-fiche--letter-spacing: -0.02em;
+  --text-prix-barre: clamp(1.059rem, 0.85rem + 1.1vw, 1.412rem);
+  --text-prix-barre--line-height: 1.15;
+  --text-prix-barre--letter-spacing: -0.02em;
   --text-hero: clamp(1.5rem, 10.5cqi, 3.5rem);
   --text-hero--line-height: 1.02;
   --text-hero--letter-spacing: -0.031em;
@@ -148,6 +230,8 @@
     interpolate-size: allow-keywords;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
@@ -163,7 +247,23 @@
   html {
     @apply font-sans;
     font-size: 106.25%;
+    overscroll-behavior-y: none;
+    scroll-padding-block-start: calc(2.75rem + env(safe-area-inset-top, 0px));
     scroll-padding-bottom: var(--hauteur-barre-enregistrement);
+  }
+
+  @media (any-pointer: coarse) {
+    html {
+      overscroll-behavior-y: auto;
+    }
+  }
+
+  @media (pointer: coarse) {
+    input,
+    textarea,
+    select {
+      font-size: max(16px, 1rem);
+    }
   }
 
   h1,
@@ -224,6 +324,93 @@
    intérieure occupe la même ligne sans déplacer la boîte ni la page. */
 .filet-bas {
   box-shadow: inset 0 -1px 0 0 var(--hairline);
+}
+
+@view-transition {
+  navigation: auto;
+}
+
+.zone-tactile {
+  position: relative;
+}
+
+.zone-tactile::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - 44px) / 2);
+}
+
+.etiquette-centree {
+  text-box: trim-both cap alphabetic;
+}
+
+.panneau-cliquable {
+  position: relative;
+}
+
+.panneau-cliquable .panneau-lien::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.panneau-cliquable .panneau-lien:focus-visible {
+  outline: 2px solid transparent;
+}
+
+.panneau-cliquable:has(.panneau-lien:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.panneau-cliquable :is(button, a:not(.panneau-lien)) {
+  position: relative;
+  z-index: 1;
+}
+
+@property --fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes rail-bords {
+  from {
+    --fade-start: 0px;
+    --fade-end: 1.5rem;
+  }
+
+  10%,
+  90% {
+    --fade-start: 1.5rem;
+    --fade-end: 1.5rem;
+  }
+
+  to {
+    --fade-start: 1.5rem;
+    --fade-end: 0px;
+  }
+}
+
+.rail-defilant {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  animation: rail-bords linear;
+  animation-timeline: scroll(self inline);
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--fade-start),
+    #000 calc(100% - var(--fade-end)),
+    transparent
+  );
 }
 
 [data-slot="button"],
