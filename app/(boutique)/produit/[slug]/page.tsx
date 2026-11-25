@@ -6,6 +6,7 @@ import { CarteProduit } from "@/components/storefront/carte-produit"
 import { ProductBuyBox } from "@/components/storefront/product-buy-box"
 import { ProductGallery } from "@/components/storefront/product-gallery"
 import { urlProduit } from "@/lib/carte-produit"
+import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
 import {
   buildBreadcrumbListDonneesStructurees,
   buildProductDonneesStructurees,
@@ -20,6 +21,7 @@ import {
   getProductPageData,
   parametresDesProduits,
 } from "@/lib/use-cases/storefront"
+import { cn } from "@/lib/utils"
 
 export async function generateStaticParams() {
   return parametresDesProduits()
@@ -47,7 +49,7 @@ export default function ProductPage({
   params: Promise<{ slug: string }>
 }) {
   return (
-    <div className="flex flex-col pb-24 lg:pb-0">
+    <div className="flex flex-col pbe-24 lg:pbe-0">
       <Suspense fallback={<ProductSkeleton />}>
         <ProductContent paramsPromise={params} />
       </Suspense>
@@ -108,19 +110,25 @@ async function ProductContent({
       />
       <AppleBreadcrumb crumbs={crumbs} />
 
-      <div className="mx-auto w-full max-w-[980px] px-4 pt-8 pb-4 sm:px-6">
-        <div className="max-w-[520px]">
-          <p className="text-sm leading-[1.2858] tracking-[-0.016em] text-muted-foreground">
-            {data.brand}
-          </p>
-          <h1 className="mt-1 text-[28px] leading-[1.1] font-semibold tracking-[-0.005em] sm:text-[32px] lg:text-[40px]">
-            {data.name}
-          </h1>
-        </div>
+      <section
+        className={cn(
+          CONTENEUR_BOUTIQUE,
+          "pbs-[clamp(2rem,1.5rem+2vw,2.75rem)] pbe-[clamp(2rem,1.5rem+2vw,3rem)]"
+        )}
+      >
+        <div className="grid grid-cols-1 gap-y-9 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-12 lg:gap-y-6">
+          <div className="flex flex-col gap-1.5 lg:col-start-2 lg:row-start-1">
+            <p className="text-sm leading-[1.2858] font-medium tracking-[-0.016em] text-muted-foreground">
+              {data.brand}
+            </p>
+            <h1 className="text-titre-produit font-semibold">{data.name}</h1>
+          </div>
 
-        <div className="mt-8 grid gap-10 lg:grid-cols-2 lg:gap-14">
-          <ProductGallery images={data.images} name={data.name} />
-          <div className="lg:pt-3">
+          <div className="lg:sticky lg:inset-bs-16 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:self-start">
+            <ProductGallery images={data.images} name={data.name} />
+          </div>
+
+          <div className="lg:col-start-2 lg:row-start-2">
             <ProductBuyBox
               minPrice={data.minPrice}
               variants={data.variants}
@@ -128,47 +136,62 @@ async function ProductContent({
             />
           </div>
         </div>
-      </div>
+      </section>
 
       {description.length > 0 ? (
-        <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
-          <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
-            Description
-          </h2>
-          <p className="mt-4 max-w-[70ch] text-body leading-body tracking-[-0.022em] whitespace-pre-line text-muted-foreground">
-            {description}
-          </p>
+        <section
+          className={cn(
+            CONTENEUR_BOUTIQUE,
+            "border-bs border-hairline py-[clamp(2rem,1.5rem+2vw,3rem)]"
+          )}
+        >
+          <div className="flex flex-col gap-4">
+            <h2 className="text-titre-section font-semibold">Description</h2>
+            <p className="max-w-[68ch] text-body leading-body tracking-[-0.022em] whitespace-pre-line text-muted-foreground">
+              {description}
+            </p>
+          </div>
         </section>
       ) : null}
 
-      <section className="mx-auto w-full max-w-[980px] px-4 py-6 sm:px-6">
-        <h2 className="text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
-          Caractéristiques
-        </h2>
-        <dl className="mt-4 max-w-[70ch] divide-y divide-foreground/10">
-          {specEntries.map(([label, value]) => (
-            <div
-              key={label}
-              className="flex items-baseline justify-between gap-8 py-3"
-            >
-              <dt className="text-[14px] leading-[1.4286] font-medium tracking-[-0.016em]">
-                {label}
-              </dt>
-              <dd className="text-right text-[14px] leading-[1.4286] tracking-[-0.016em] text-muted-foreground">
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
+      <section
+        className={cn(
+          CONTENEUR_BOUTIQUE,
+          "border-bs border-hairline py-[clamp(2rem,1.5rem+2vw,3rem)]"
+        )}
+      >
+        <div className="flex flex-col gap-4">
+          <h2 className="text-titre-section font-semibold">Caractéristiques</h2>
+          <dl className="max-w-[68ch] divide-y divide-hairline">
+            {specEntries.map(([label, value]) => (
+              <div
+                key={label}
+                className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1 py-3.5"
+              >
+                <dt className="text-sm leading-[1.4286] font-medium tracking-[-0.016em] text-foreground">
+                  {label}
+                </dt>
+                <dd className="text-end text-sm leading-[1.4286] tracking-[-0.016em] text-muted-foreground tabular-nums">
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </section>
 
       {data.related.length > 0 ? (
-        <section className="mt-10 bg-muted">
-          <div className="mx-auto max-w-[980px] px-4 py-12 sm:px-6">
-            <h2 className="text-center text-[24px] leading-[1.125] font-semibold tracking-[0.002em] sm:text-[28px] lg:text-[32px]">
+        <section className="mbs-6 border-bs border-hairline bg-muted [--surface-image:var(--background)]">
+          <div
+            className={cn(
+              CONTENEUR_BOUTIQUE,
+              "flex flex-col gap-8 py-[clamp(2.5rem,2rem+2vw,3.5rem)]"
+            )}
+          >
+            <h2 className="text-center text-titre-section font-semibold">
               Vous aimerez aussi
             </h2>
-            <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,10rem),1fr))] gap-x-[clamp(0.75rem,2vw,1.25rem)] gap-y-8">
               {data.related.map((product) => (
                 <CarteProduit key={product.id} product={product} />
               ))}
@@ -183,25 +206,30 @@ async function ProductContent({
 function ProductSkeleton() {
   return (
     <>
-      <div className="h-11 animate-pulse bg-muted" />
-      <div className="mx-auto flex w-full max-w-[980px] flex-col gap-10 px-4 py-10 sm:px-6">
-        <div className="flex flex-col gap-2">
-          <div className="h-4 w-24 animate-pulse rounded-full bg-muted" />
-          <div className="h-10 w-3/4 animate-pulse rounded-full bg-muted" />
-        </div>
-        <div className="grid gap-10 lg:grid-cols-2">
-          <div className="aspect-square animate-pulse rounded-2xl bg-muted" />
-          <div className="flex flex-col gap-4">
-            <div className="h-9 w-full max-w-64 animate-pulse rounded-full bg-muted" />
-            <div className="h-8 w-40 animate-pulse rounded-full bg-muted" />
-            <div className="h-4 w-64 animate-pulse rounded-full bg-muted" />
-            <div className="h-9 w-full max-w-64 animate-pulse rounded-full bg-muted" />
+      <div className="animate-pulse bg-muted block-11" />
+      <div
+        className={cn(
+          CONTENEUR_BOUTIQUE,
+          "flex flex-col gap-10 py-[clamp(1.5rem,1rem+2vw,2.5rem)]"
+        )}
+      >
+        <div className="grid grid-cols-1 gap-y-7 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)] lg:grid-rows-[auto_1fr] lg:gap-x-12 lg:gap-y-6">
+          <div className="flex flex-col gap-2 lg:col-start-2 lg:row-start-1">
+            <div className="animate-pulse rounded-full bg-muted block-4 inline-24" />
+            <div className="animate-pulse rounded-full bg-muted block-10 inline-3/4" />
+          </div>
+          <div className="aspect-square animate-pulse rounded-2xl bg-muted lg:col-start-1 lg:row-span-2 lg:row-start-1" />
+          <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-2">
+            <div className="animate-pulse rounded-full bg-muted block-11 inline-full max-inline-64" />
+            <div className="animate-pulse rounded-full bg-muted block-8 inline-40" />
+            <div className="animate-pulse rounded-full bg-muted block-4 inline-64" />
+            <div className="animate-pulse rounded-full bg-muted block-12 inline-full" />
           </div>
         </div>
         <div className="flex flex-col gap-2">
-          <div className="h-8 w-48 animate-pulse rounded-full bg-muted" />
-          <div className="h-4 w-full animate-pulse rounded-full bg-muted" />
-          <div className="h-4 w-2/3 animate-pulse rounded-full bg-muted" />
+          <div className="animate-pulse rounded-full bg-muted block-8 inline-48" />
+          <div className="animate-pulse rounded-full bg-muted block-4 inline-full" />
+          <div className="animate-pulse rounded-full bg-muted block-4 inline-2/3" />
         </div>
       </div>
     </>

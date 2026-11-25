@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
 import { cn } from "@/lib/utils"
 import {
   useMutationsDuPanier,
@@ -39,16 +40,28 @@ export function BarreDAchat({
       inert={!visible}
       aria-hidden={!visible}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/75 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none max-[359px]:px-2 sm:px-6 lg:hidden",
+        "voile-depoli fixed inset-x-0 inset-be-0 z-40 border-bs border-hairline pbs-3 pbe-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-200 ease-out [--voile-depoli-opacite:86%] motion-safe:transition-[opacity,transform] lg:hidden",
         visible
           ? "translate-y-0 opacity-100"
-          : "pointer-events-none translate-y-full opacity-0"
+          : "pointer-events-none opacity-0 motion-safe:translate-y-full"
       )}
     >
-      <div className="mx-auto flex w-full max-w-[980px] items-center justify-between gap-2">
-        <p className="shrink-0 text-2xl font-semibold whitespace-nowrap sm:text-[28px]">
-          {prix}
-        </p>
+      <div
+        className={cn(
+          CONTENEUR_BOUTIQUE,
+          "flex items-center justify-between gap-3"
+        )}
+      >
+        <div className="flex min-w-0 flex-1 flex-col">
+          <p className="text-prix-barre font-semibold whitespace-nowrap tabular-nums">
+            {prix}
+          </p>
+          {variantNom ? (
+            <p className="truncate text-xs text-muted-foreground">
+              {variantNom}
+            </p>
+          ) : null}
+        </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <Button
             size="xl"
@@ -64,7 +77,7 @@ export function BarreDAchat({
                   ? `Ajouter au panier — ${variantNom}`
                   : undefined
             }
-            className="rounded-full text-body max-[359px]:px-2"
+            className="rounded-full px-5 text-body min-block-11 motion-safe:active:scale-[0.97]"
           >
             {enAttente ? (
               "Ajout…"
@@ -78,10 +91,12 @@ export function BarreDAchat({
             )}
           </Button>
           {ajoute && (
-            <p className="text-sm text-emerald-700">Ajouté au panier</p>
+            <p role="status" className="text-xs font-medium text-succes">
+              Ajouté au panier
+            </p>
           )}
           {messageRefus && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-xs font-medium text-destructive">
               {messageRefus}
             </p>
           )}

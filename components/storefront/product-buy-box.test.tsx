@@ -379,7 +379,9 @@ describe("ProductBuyBox", () => {
     expect(port.appels).toEqual([
       { operation: "ajouter", variantId: "variante-a", quantity: 1 },
     ])
-    expect(container.textContent).toContain("Ajouté au panier")
+    expect(container.querySelector("[role='status']")?.textContent).toBe(
+      "Ajouté au panier"
+    )
   })
 
   it("affiche le Refus du panier du bouton du bloc d'achat dans role='alert'", async () => {

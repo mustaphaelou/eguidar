@@ -130,7 +130,9 @@ describe("BarreDAchat", () => {
     cliquer()
     await rejouerTransition()
 
-    expect(barre().textContent).toContain("Ajouté au panier")
+    expect(barre().querySelector("[role='status']")?.textContent).toBe(
+      "Ajouté au panier"
+    )
     expect(barre().querySelector("[role='alert']")).toBeNull()
   })
 
@@ -203,6 +205,7 @@ describe("BarreDAchat", () => {
   it("porte un aria-label contextuel nommant la variante sélectionnée", () => {
     rendreBarre(undefined, { variantNom: "Premium" })
 
+    expect(barre().textContent).toContain("Premium")
     expect(boutonBarre().getAttribute("aria-label")).toContain(
       "Ajouter au panier"
     )

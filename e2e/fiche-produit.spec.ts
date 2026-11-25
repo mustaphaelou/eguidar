@@ -5,6 +5,7 @@ import {
   attendreLaPagePrete,
   attendreLeCompteurDuPanier,
 } from "./harnais/attente"
+import { rapportDeContraste } from "./harnais/contraste"
 import {
   DESCRIPTION_DE_LA_FICHE_DE_PRODUCTION,
   NOM_DE_LA_FICHE_DE_PRODUCTION,
@@ -185,5 +186,162 @@ test.describe("la fiche du Produit de production", () => {
     await ouvrir(page, serveur.origine, CHEMIN_DE_LA_FICHE)
     await expect(page.getByRole("main")).toContainText(PRIX_AFFICHE)
     await expect(page.getByRole("main")).not.toContainText(PRIX_DE_BASE_AFFICHE)
+  })
+
+  test("navigue dans la galerie par les boutons suivant/précédent et le clavier", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrir(page, serveur.origine, CHEMIN_DE_LA_FICHE)
+
+    const principale = page.getByRole("img", {
+      name: NOM_DE_LA_FICHE_DE_PRODUCTION,
+      exact: true,
+    })
+    const sourceInitiale = await principale.getAttribute("src")
+
+    await page
+      .getByRole("button", { name: "Image suivante", exact: true })
+      .click()
+    await expect(page.getByText("2 / 2", { exact: true })).toBeVisible()
+    await expect
+      .poll(() => principale.getAttribute("src"))
+      .not.toBe(sourceInitiale)
+
+    await page
+      .getByRole("button", { name: "Image précédente", exact: true })
+      .click()
+    await expect(page.getByText("1 / 2", { exact: true })).toBeVisible()
+
+    const premiereVignette = page
+      .getByRole("button", { name: /Afficher l'image 1 sur 2/ })
+      .first()
+    await premiereVignette.focus()
+    await page.keyboard.press("ArrowRight")
+    await expect(page.getByText("2 / 2", { exact: true })).toBeVisible()
+
+    await page.keyboard.press("ArrowLeft")
+    await expect(page.getByText("1 / 2", { exact: true })).toBeVisible()
+  })
+
+  test("offre des cibles tactiles >= 44 px et un accusé d'ajout contrasté", async ({
+    page,
+    serveur,
+  }) => {
+    await ouvrir(page, serveur.origine, CHEMIN_DE_LA_FICHE)
+
+    const puces = page
+      .getByRole("group", { name: "Variante" })
+      .getByRole("button")
+    const nombrePuces = await puces.count()
+    expect(nombrePuces).toBeGreaterThanOrEqual(2)
+    for (let i = 0; i < nombrePuces; i++) {
+      const boite = await puces.nth(i).boundingBox()
+      expect(boite?.height ?? 0).toBeGreaterThanOrEqual(44)
+    }
+
+    const action = page.getByRole("button", {
+      name: "Ajouter au panier",
+      exact: true,
+    })
+    const boiteAction = await action.boundingBox()
+    expect(boiteAction?.height ?? 0).toBeGreaterThanOrEqual(44)
+
+    await action.click()
+    const statut = page
+      .getByRole("main")
+      .getByRole("status")
+      .filter({ hasText: "Ajouté au panier" })
+      .first()
+    await expect(statut).toBeVisible()
+    expect(await rapportDeContraste(statut)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test.describe("à 320 × 568", () => {
+    test.use({ viewport: { width: 320, height: 568 } })
+
+    test("garde les vignettes >= 44 × 44 px sans débordement horizontal", async ({
+      page,
+      serveur,
+    }) => {
+      await ouvrir(page, serveur.origine, CHEMIN_DE_LA_FICHE)
+
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth)
+      ).toBeLessThanOrEqual(320)
+
+      const vignettes = page.getByRole("button", {
+        name: /Afficher l'image \d sur 2/,
+      })
+      await expect(vignettes).toHaveCount(2)
+      for (let i = 0; i < 2; i++) {
+        const boite = await vignettes.nth(i).boundingBox()
+        expect(boite?.width ?? 0).toBeGreaterThanOrEqual(44)
+        expect(boite?.height ?? 0).toBeGreaterThanOrEqual(44)
+      }
+    })
+  })
+
+  test.describe("sur ordinateur à 1280 × 800", () => {
+    test.use({
+      viewport: { width: 1280, height: 800 },
+      isMobile: false,
+      hasTouch: false,
+      deviceScaleFactor: 1,
+    })
+
+    test("aligne le fil d'Ariane, place galerie et achat côte à côte au-dessus de la ligne de flottaison et détache les cartes liées", async ({
+      page,
+      serveur,
+    }) => {
+      await ouvrir(page, serveur.origine, CHEMIN_DE_LA_FICHE)
+
+      const boiteEntete = await page
+        .locator("header > div")
+        .first()
+        .boundingBox()
+      const boiteFil = await page
+        .locator('nav[aria-label="Fil d\'Ariane"] ol')
+        .boundingBox()
+      const boiteSection = await page
+        .locator("main section")
+        .first()
+        .boundingBox()
+
+      expect(boiteEntete).not.toBeNull()
+      expect(boiteFil).not.toBeNull()
+      expect(boiteSection).not.toBeNull()
+      expect(Math.abs(boiteFil!.x - boiteEntete!.x)).toBeLessThanOrEqual(1)
+      expect(Math.abs(boiteFil!.x - boiteSection!.x)).toBeLessThanOrEqual(1)
+
+      const boiteGalerie = await page
+        .getByRole("img", { name: NOM_DE_LA_FICHE_DE_PRODUCTION, exact: true })
+        .boundingBox()
+      const action = page.getByRole("button", {
+        name: "Ajouter au panier",
+        exact: true,
+      })
+      const boiteAction = await action.boundingBox()
+
+      expect(boiteGalerie).not.toBeNull()
+      expect(boiteAction).not.toBeNull()
+      expect(boiteGalerie!.x + boiteGalerie!.width).toBeLessThanOrEqual(
+        boiteAction!.x
+      )
+      await expect(action).toBeInViewport()
+
+      const sectionLies = page.locator("main section").filter({
+        has: page.getByRole("heading", { name: "Vous aimerez aussi" }),
+      })
+      await sectionLies.scrollIntoViewIfNeeded()
+      const fondSection = await sectionLies.evaluate(
+        (element) => getComputedStyle(element).backgroundColor
+      )
+      const fondCarte = await sectionLies
+        .locator("a div")
+        .first()
+        .evaluate((element) => getComputedStyle(element).backgroundColor)
+      expect(fondCarte).not.toBe(fondSection)
+    })
   })
 })

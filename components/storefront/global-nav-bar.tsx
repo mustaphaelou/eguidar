@@ -105,7 +105,7 @@ export function GlobalNavBar({
   return (
     <header
       className={cn(
-        "sticky top-0 transition-colors duration-300",
+        "sticky inset-bs-0 pbs-[env(safe-area-inset-top,0px)] transition-colors duration-300",
         ouvert ? "z-50" : "z-40",
         scrolled &&
           !ouvert &&
@@ -136,7 +136,7 @@ export function GlobalNavBar({
                 <li key={categorie.slug}>
                   <Link
                     href={`/categorie/${categorie.slug}`}
-                    className="text-[12px] leading-[1.3334] tracking-[-0.01em] whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+                    className="inline-flex items-center text-[12px] leading-[1.3334] tracking-[-0.01em] whitespace-nowrap text-muted-foreground transition-[color,opacity] duration-150 ease-out min-block-11 active:opacity-70 [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
                   >
                     {categorie.name}
                   </Link>
@@ -223,7 +223,7 @@ export function GlobalNavBar({
           ref={menuPanelRef}
           id="menu-categories"
           hidden={!menuOpen}
-          className="voile-depoli border-b border-hairline [--voile-depoli-opacite:80%] lg:hidden"
+          className="voile-depoli border-be border-hairline [--voile-depoli-opacite:80%] lg:hidden"
         >
           <nav
             aria-label="Catégories"
@@ -235,7 +235,7 @@ export function GlobalNavBar({
                   <Link
                     href={`/categorie/${categorie.slug}`}
                     onClick={() => setMenuOpen(false)}
-                    className="flex min-h-11 items-center text-[15px] leading-[1.3334] tracking-[-0.01em] text-muted-foreground transition-colors hover:text-foreground"
+                    className="flex items-center text-[15px] leading-[1.3334] tracking-[-0.01em] text-muted-foreground transition-[color,opacity] duration-150 ease-out min-block-11 active:opacity-70 [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
                   >
                     {categorie.name}
                   </Link>
@@ -247,7 +247,7 @@ export function GlobalNavBar({
       ) : null}
 
       {searchOpen ? (
-        <div className="voile-depoli border-b border-hairline [--voile-depoli-opacite:80%]">
+        <div className="voile-depoli border-be border-hairline [--voile-depoli-opacite:80%]">
           <div className={cn(CONTENEUR_BOUTIQUE, "py-2")}>
             <form
               method="GET"

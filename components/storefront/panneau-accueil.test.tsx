@@ -159,4 +159,16 @@ describe("PanneauPleineLargeur", () => {
     expect(classes).toContain("object-bottom")
     expect(classes).not.toContain("lg:object-contain")
   })
+
+  it("rend tout le Panneau cliquable depuis son titre et utilise overflow-clip sur l'art", () => {
+    render(<PanneauPleineLargeur panneau={panneau()} champ="muted" premier />)
+
+    const lienTitre = container.querySelector<HTMLAnchorElement>("h1 a")
+    expect(lienTitre?.getAttribute("href")).toBe("/produit/iphone-18-pro-max")
+    expect(lienTitre?.className).toContain("panneau-lien")
+
+    const cadreArt = image().parentElement?.parentElement
+    expect(cadreArt?.className).toContain("overflow-clip")
+    expect(cadreArt?.className).not.toContain("overflow-hidden")
+  })
 })

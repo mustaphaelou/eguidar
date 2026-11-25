@@ -71,11 +71,11 @@ describe("la famille du survol dans la feuille de style compilée", () => {
       liste.some((selecteur) => porteLaClasse(selecteur, ".group-hover:"))
     ).toBe(true)
     expect(
-      liste.some((selecteur) => porteLaClasse(selecteur, ".group-hover/lien:"))
+      liste.some((selecteur) => porteLaClasse(selecteur, "group-hover/lien:"))
     ).toBe(true)
     expect(
       liste.some((selecteur) =>
-        porteLaClasse(selecteur, ".group-hover/categorie:")
+        porteLaClasse(selecteur, "group-hover/categorie:")
       )
     ).toBe(true)
   })
@@ -96,17 +96,17 @@ describe("la famille du survol dans la feuille de style compilée", () => {
     ).toBe(true)
   })
 
-  it("garde le soulignement du lien du Panneau et des catégories de la Bande", () => {
+  it("garde le soulignement du lien du Panneau et des catégories de la Bande sous pointeur fin", () => {
     const liste = selecteursDe(feuille)
 
     expect(
       liste.some((selecteur) =>
-        porteLaClasse(selecteur, ".group-hover/lien:underline")
+        porteLaClasse(selecteur, "group-hover/lien:underline")
       )
     ).toBe(true)
     expect(
       liste.some((selecteur) =>
-        porteLaClasse(selecteur, ".group-hover/categorie:underline")
+        porteLaClasse(selecteur, "group-hover/categorie:underline")
       )
     ).toBe(true)
 
@@ -114,16 +114,18 @@ describe("la famille du survol dans la feuille de style compilée", () => {
     let bande: Rule | undefined
 
     feuille.racine.walkRules((regle) => {
-      if (porteLaClasse(regle.selector, ".group-hover/lien:")) {
+      if (porteLaClasse(regle.selector, "group-hover/lien:underline")) {
         panneau = regle
       }
-      if (porteLaClasse(regle.selector, ".group-hover/categorie:")) {
+      if (porteLaClasse(regle.selector, "group-hover/categorie:underline")) {
         bande = regle
       }
     })
 
     expect(panneau?.toString()).toContain("text-decoration-line: underline")
     expect(bande?.toString()).toContain("text-decoration-line: underline")
+    expect(panneau && dansLaRequeteDuPointeurFin(panneau)).toBe(true)
+    expect(bande && dansLaRequeteDuPointeurFin(bande)).toBe(true)
   })
 
   it("n'émet le soulignement du titre de la carte de blog que sous la requête du pointeur fin", () => {

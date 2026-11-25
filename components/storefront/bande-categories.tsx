@@ -8,6 +8,7 @@ import {
 } from "@/components/storefront/panneau-accueil"
 import { BANDE_CATEGORIES, decompteDesProduits } from "@/lib/accueil-panneaux"
 import { APPARITION, retard } from "@/lib/apparition"
+import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
 import type { NoeudAccueil } from "@/lib/use-cases/lecture-structure"
 import { cn } from "@/lib/utils"
 
@@ -20,10 +21,13 @@ export function BandeCategories({
 
   return (
     <ApparitionPanneau
-      className={cn("w-full px-4 py-14 sm:px-6 sm:py-16", CHAMP.muted.panneau)}
+      className={cn(
+        "w-full py-[clamp(3rem,2rem+3vw,4.5rem)]",
+        CHAMP.muted.panneau
+      )}
     >
-      <div className="mx-auto flex max-w-[980px] flex-col gap-10">
-        <div className="flex flex-col items-center gap-2">
+      <div className={cn(CONTENEUR_BOUTIQUE, "flex flex-col gap-8")}>
+        <div className="flex flex-col items-center gap-2 text-center">
           <h2 className={cn(TITRE_PROMO, "font-semibold", APPARITION)}>
             {BANDE_CATEGORIES.titre}
           </h2>
@@ -38,37 +42,43 @@ export function BandeCategories({
             {BANDE_CATEGORIES.surtitre}
           </p>
         </div>
-        <ul className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 xl:grid-cols-6">
+        <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8rem),1fr))] gap-3">
           {categories.map((categorie, index) => (
             <li
               key={categorie.id}
-              className={cn(APPARITION, retard(index + 2))}
+              className={cn(
+                "row-span-3 grid grid-rows-subgrid",
+                APPARITION,
+                retard(index + 2)
+              )}
             >
               <Link
                 href={`/categorie/${categorie.slug}`}
-                className="group/categorie flex flex-col items-center gap-1 text-center"
+                className="group/categorie row-span-3 grid grid-rows-subgrid items-center justify-items-center gap-y-1.5 rounded-2xl bg-background px-3 py-5 text-center ring-1 ring-hairline transition-[box-shadow,opacity] duration-150 ease-out ring-inset active:opacity-80 motion-safe:transition-[box-shadow,opacity,transform] motion-safe:active:scale-[0.98] [@media(hover:hover)_and_(pointer:fine)]:hover:ring-bordure-subtile"
               >
-                <span className="text-[17px] leading-[1.2354] font-semibold tracking-[-0.022em]">
+                <span className="self-end text-sm leading-snug font-semibold text-foreground">
                   {categorie.name}
                 </span>
                 <span
-                  className={cn(
-                    "text-[14px] leading-[1.2858] tracking-[-0.016em]",
-                    CHAMP.muted.second
-                  )}
+                  className={cn("text-xs tabular-nums", CHAMP.muted.second)}
                 >
                   {decompteDesProduits(categorie)}
                 </span>
                 <span
                   className={cn(
-                    "mt-1 text-[14px] leading-[1.2858] tracking-[-0.016em]",
+                    "inline-flex items-center gap-0.5 self-start text-xs font-medium",
                     CHAMP.muted.lien
                   )}
                 >
-                  <span className="group-hover/categorie:underline">
+                  <span className="[@media(hover:hover)_and_(pointer:fine)]:group-hover/categorie:underline">
                     {BANDE_CATEGORIES.cta}
                   </span>
-                  <span aria-hidden="true"> ›</span>
+                  <span
+                    aria-hidden="true"
+                    className="inline-block motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out motion-safe:[@media(hover:hover)_and_(pointer:fine)]:group-hover/categorie:translate-x-0.5"
+                  >
+                    ›
+                  </span>
                 </span>
               </Link>
             </li>
