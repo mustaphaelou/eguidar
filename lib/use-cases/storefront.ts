@@ -39,9 +39,16 @@ export interface HomeData {
   featured: CarteProduit[]
 }
 
+export interface NavSubcategory {
+  name: string
+  slug: string
+}
+
 export interface NavCategory {
   name: string
   slug: string
+  children: readonly NavSubcategory[]
+  brands: readonly string[]
 }
 
 export interface CategoryPageData {
@@ -122,9 +129,55 @@ export async function fetchHomeData(): Promise<HomeData> {
   }
 }
 
+const MAX_MARQUES_NAVIGATION = 8
+
 export async function fetchNavCategories(): Promise<NavCategory[]> {
-  const lecture = await lireStructure()
-  return lecture.arbreAccueil().map(({ name, slug }) => ({ name, slug }))
+  const [lecture, produits] = await Promise.all([
+    lireStructure(),
+    prisma.product.findMany({
+      where: { categoryId: { not: null } },
+      select: { categoryId: true, brand: true },
+    }),
+  ])
+
+  const comptesParCategorie = new Map<string, Map<string, number>>()
+  for (const produit of produits) {
+    if (produit.categoryId === null) continue
+    const marque = produit.brand.trim()
+    if (!marque) continue
+    let comptes = comptesParCategorie.get(produit.categoryId)
+    if (!comptes) {
+      comptes = new Map()
+      comptesParCategorie.set(produit.categoryId, comptes)
+    }
+    comptes.set(marque, (comptes.get(marque) ?? 0) + 1)
+  }
+
+  return lecture.arbreAccueil().map((racine) => {
+    const marquesBranche = new Map<string, number>()
+    for (const id of lecture.branche(racine.id)) {
+      const comptes = comptesParCategorie.get(id)
+      if (!comptes) continue
+      for (const [marque, count] of comptes) {
+        marquesBranche.set(marque, (marquesBranche.get(marque) ?? 0) + count)
+      }
+    }
+
+    const brands = [...marquesBranche.entries()]
+      .sort(
+        (a, b) =>
+          b[1] - a[1] || a[0].localeCompare(b[0], "fr", { sensitivity: "base" })
+      )
+      .slice(0, MAX_MARQUES_NAVIGATION)
+      .map(([marque]) => marque)
+
+    return {
+      name: racine.name,
+      slug: racine.slug,
+      children: racine.children.map(({ name, slug }) => ({ name, slug })),
+      brands,
+    }
+  })
 }
 
 export async function fetchCategoryPageData(
@@ -250,7 +303,7 @@ export async function getHomeData(): Promise<HomeData> {
 
 export async function getNavCategories(): Promise<NavCategory[]> {
   "use cache: remote"
-  cacheTag(CATEGORY_TAG)
+  cacheTag(CATEGORY_TAG, PRODUCT_TAG)
   cacheLife(NAVIGATION_CACHE_LIFE)
   return fetchNavCategories()
 }

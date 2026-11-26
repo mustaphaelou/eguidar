@@ -45,6 +45,7 @@
   --color-link-sombre: var(--link-sombre);
   --color-encre-sombre-secondaire: var(--encre-sombre-secondaire);
   --color-encre-annuaire: var(--encre-annuaire);
+  --color-encre-menu: var(--encre-menu);
   --color-encre-attenuee: var(--encre-attenuee);
   --color-succes: var(--succes);
   --color-succes-point: var(--succes-point);
@@ -98,6 +99,7 @@
 @theme {
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 :root {
@@ -130,6 +132,7 @@
     transparent
   );
   --encre-annuaire: oklch(38% 0 none);
+  --encre-menu: oklch(29% 0 none);
   --encre-attenuee: color-mix(
     in oklch,
     var(--muted-foreground) 65%,
@@ -314,6 +317,53 @@
     background-color: var(--secondary);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="feuille-navigation"] {
+    animation-name: feuille-navigation-ouverture;
+    animation-duration: 240ms;
+    animation-timing-function: var(--ease-drawer);
+    animation-fill-mode: both;
+  }
+
+  [data-slot="colonne-feuille"] {
+    animation-name: feuille-navigation-element;
+    animation-duration: 220ms;
+    animation-delay: calc(35ms + var(--rang-colonne, 0) * 35ms);
+    animation-timing-function: var(--ease-out);
+    animation-fill-mode: both;
+  }
+
+  [data-slot="element-feuille"] {
+    animation-name: feuille-navigation-element;
+    animation-duration: 220ms;
+    animation-delay: calc(25ms + var(--rang-element, 0) * 24ms);
+    animation-timing-function: var(--ease-out);
+    animation-fill-mode: both;
+  }
+}
+
+@keyframes feuille-navigation-ouverture {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0% 0);
+  }
+}
+
+@keyframes feuille-navigation-element {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 

@@ -7,6 +7,7 @@ L'habillage reprend celui d'apple.com : la palette, la typographie et le Voile d
 ## Index
 
 - **Bandeau de navigation**
+- **Feuille de navigation**
 - **Pied de page**
 - **Voile dépoli**
 - **Voile sombre**
@@ -145,15 +146,19 @@ L'habillage reprend celui d'apple.com : la palette, la typographie et le Voile d
 ## Language
 
 **Bandeau de navigation**:
-La barre fixe en tête de la boutique portant le Logo, l'entrée de Recherche et le déclencheur de l'**Aperçu du Panier**, présente sur toute page de la boutique. Distincte de la **Barre d'achat**, fixée en bas sur mobile, et du bandeau de l'Administration. Il ne porte aucune entrée vers les pages de la boutique — À propos, Contact, FAQ, Blog, Conditions & livraison — que seul le **Pied de page** porte. Il ne porte pas de déclencheur de Connexion : l'entrée du Compte est portée par l'**Aperçu du Panier** et par la section « Mon compte » du **Pied de page**.
+La barre fixe en tête de la boutique portant le Logo, les **Structures** racines, l'entrée de **Recherche** et le déclencheur de l'**Aperçu du Panier**, présente sur toute page de la boutique. Distincte de la **Barre d'achat**, fixée en bas sur mobile, et du bandeau de l'Administration. Il ne porte aucune entrée vers les pages de la boutique — À propos, Contact, FAQ, Blog, Conditions & livraison — que seul le **Pied de page** porte. Il ne porte pas de déclencheur de Connexion : l'entrée du Compte est portée par l'**Aperçu du Panier** et par la section « Mon compte » du **Pied de page**.
 _Avoid_: header, navbar, barre de navigation, barre du haut
+
+**Feuille de navigation**:
+La feuille qui se déploie sous le **Bandeau de navigation** par-dessus un **Voile sombre** lorsque le Client ou le Visiteur explore une **Structure** racine (ses sous-catégories, ses marques et ses accès de tri et de **Catalogue**) ou ouvre la **Recherche**. Elle porte le même matériau **Voile dépoli** que l'**Aperçu du Panier** et s'exclut mutuellement avec lui. Distincte du **Panneau** de l'accueil.
+_Avoid_: panneau (réservé aux Panneaux de l'accueil), rideau, mega-menu, flyout, dropdown
 
 **Pied de page**:
 La surface en bas des pages de la boutique qui porte son annuaire : quatre sections — « La boutique », « Mon compte », « Aide » et « La maison » — déclarées comme données, rendues comme des disclosures natives ouvertes dès le HTML serveur, sans composant client, et réparties en colonnes égales sur les écrans larges. Le tout est un repère `contentinfo` nommé, ses colonnes un repère de navigation au libellé français, et chaque destination n'y figure qu'une fois. Au-dessus de la rangée légale, la bande d'assurance porte dans la recette du petit texte la tagline, le paiement à la livraison et la TVA, les frais de livraison, et le téléphone en lien `tel:`. La rangée légale, déclarée à part, ne porte que le copyright, la licence MIT, Conditions & livraison et Suppression des données.
 _Avoid_: footer, bas de page, pied, annuaire (comme nom du concept)
 
 **Voile dépoli**:
-Le matériau translucide posé par-dessus un contenu qui défile, pour qu'une surface fixe reste lisible : le **Bandeau de navigation** et les modales de Connexion et d'Inscription. Un seul matériau et une seule recette : son épaisseur varie d'une surface à l'autre — opacité, flou et saturation. Il ne porte aucun contenu, et le porter n'est jamais un choix de la surface — le **Bandeau de navigation** ne le porte qu'une fois la page défilée, les modales en permanence. Une feuille plein cadre qui recouvre la page, comme le panneau de Filtres sur mobile, ne le porte pas : elle a son propre fond. L'**Aperçu du Panier** fait exception : sa feuille porte le matériau, plus épais, parce qu'elle fournit le fond du **Bandeau de navigation**.
+Le matériau translucide posé par-dessus un contenu qui défile, pour qu'une surface fixe reste lisible : le **Bandeau de navigation** et les modales de Connexion et d'Inscription. Un seul matériau et une seule recette : son épaisseur varie d'une surface à l'autre — opacité, flou et saturation. Il ne porte aucun contenu, et le porter n'est jamais un choix de la surface — le **Bandeau de navigation** ne le porte qu'une fois la page défilée, les modales en permanence. Une feuille plein cadre qui recouvre la page, comme le panneau de Filtres sur mobile, ne le porte pas : elle a son propre fond. L'**Aperçu du Panier** et la **Feuille de navigation** font exception : leurs feuilles portent le matériau, plus épais, parce qu'elles fournissent le fond du **Bandeau de navigation**.
 _Avoid_: glass, glassmorphism, verre dépoli, frosted glass, backdrop blur
 
 **Voile sombre**:

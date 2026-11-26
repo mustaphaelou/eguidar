@@ -179,8 +179,13 @@ describe("GlobalNavBar", () => {
 
   it("rend les catégories dans la barre et les déplie sur mobile", () => {
     const categories = [
-      { name: "Smartphones", slug: "smartphones" },
-      { name: "Ordinateurs & Tablettes", slug: "ordinateurs-tablettes" },
+      { name: "Smartphones", slug: "smartphones", children: [], brands: [] },
+      {
+        name: "Ordinateurs & Tablettes",
+        slug: "ordinateurs-tablettes",
+        children: [],
+        brands: [],
+      },
     ]
     const errors = renderCapturingErrors(
       <GlobalNavBar categories={categories} />
@@ -630,4 +635,174 @@ describe("GlobalNavBar sans navigation de pages", () => {
       expect(document.activeElement).toBe(panier)
     }
   )
+})
+
+describe("GlobalNavBar — Feuille de navigation et Recherche", () => {
+  const categories = [
+    {
+      name: "Smartphones",
+      slug: "smartphones",
+      children: [{ name: "iPhone", slug: "iphone" }],
+      brands: ["Apple", "Samsung"],
+    },
+    {
+      name: "Accessoires",
+      slug: "accessoires",
+      children: [],
+      brands: ["Anker"],
+    },
+  ]
+
+  function feuilleNavigation() {
+    return container.querySelector<HTMLElement>(
+      "[data-slot='feuille-navigation']"
+    )
+  }
+
+  it("ouvre la Feuille de navigation au survol fin, bascule sans délai et ferme au départ sur le Voile sombre", () => {
+    vi.useFakeTimers()
+    try {
+      const errors = renderCapturingErrors(
+        <GlobalNavBar categories={categories} />
+      )
+
+      const lienSmartphones = container.querySelector<HTMLAnchorElement>(
+        "nav[aria-label='Catégories'] a[href='/categorie/smartphones']"
+      )!
+      const lienAccessoires = container.querySelector<HTMLAnchorElement>(
+        "nav[aria-label='Catégories'] a[href='/categorie/accessoires']"
+      )!
+
+      act(() => {
+        lienSmartphones.dispatchEvent(
+          new PointerEvent("pointerover", {
+            bubbles: true,
+            pointerType: "touch",
+          })
+        )
+        vi.advanceTimersByTime(100)
+      })
+      expect(feuilleNavigation()).toBeNull()
+
+      act(() => {
+        lienSmartphones.dispatchEvent(
+          new PointerEvent("pointerover", {
+            bubbles: true,
+            pointerType: "mouse",
+          })
+        )
+      })
+      expect(feuilleNavigation()).toBeNull()
+
+      act(() => {
+        vi.advanceTimersByTime(80)
+      })
+
+      const feuille = feuilleNavigation()!
+      expect(feuille.getAttribute("aria-label")).toBe("Smartphones")
+      expect(feuille.textContent).toContain("Explorer Smartphones")
+      expect(feuille.textContent).toContain("iPhone")
+      expect(feuille.textContent).toContain("Par marque")
+      expect(feuille.textContent).toContain("Apple")
+      expect(voileSombre()).not.toBeNull()
+      expect(bandeau().classList.contains("z-50")).toBe(true)
+
+      act(() => {
+        lienAccessoires.dispatchEvent(
+          new PointerEvent("pointerover", {
+            bubbles: true,
+            pointerType: "mouse",
+          })
+        )
+      })
+      expect(feuilleNavigation()!.getAttribute("aria-label")).toBe(
+        "Accessoires"
+      )
+      expect(feuilleNavigation()!.textContent).toContain("Anker")
+
+      act(() => {
+        voileSombre().dispatchEvent(
+          new PointerEvent("pointerover", {
+            bubbles: true,
+            pointerType: "mouse",
+          })
+        )
+        vi.advanceTimersByTime(140)
+      })
+      expect(feuilleNavigation()).toBeNull()
+      expect(container.querySelector("[data-slot='voile-sombre']")).toBeNull()
+      expect(errors).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("ouvre la Feuille de navigation au clavier avec Flèche bas et rend le focus sur Escape", () => {
+    renderCapturingErrors(<GlobalNavBar categories={categories} />)
+
+    const lienSmartphones = container.querySelector<HTMLAnchorElement>(
+      "nav[aria-label='Catégories'] a[href='/categorie/smartphones']"
+    )!
+    lienSmartphones.focus()
+
+    act(() => {
+      lienSmartphones.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })
+      )
+    })
+
+    const feuille = feuilleNavigation()!
+    expect(feuille).not.toBeNull()
+    expect(feuille.contains(document.activeElement)).toBe(true)
+
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    })
+
+    expect(feuilleNavigation()).toBeNull()
+    expect(document.activeElement).toBe(lienSmartphones)
+  })
+
+  it("affiche les Liens rapides et le Voile sombre dans la Feuille de Recherche", () => {
+    renderCapturingErrors(<GlobalNavBar categories={categories} />)
+
+    const recherche = boutonRecherche()
+    act(() => recherche.click())
+
+    expect(voileSombre()).not.toBeNull()
+    expect(container.textContent).toContain("Liens rapides")
+    expect(container.textContent).toContain("Tout le catalogue")
+
+    act(() => voileSombre().click())
+
+    expect(container.querySelector("input[name='q']")).toBeNull()
+    expect(container.querySelector("[data-slot='voile-sombre']")).toBeNull()
+    expect(document.activeElement).toBe(recherche)
+  })
+
+  it("déplie les sous-catégories et marques dans le menu mobile", () => {
+    renderCapturingErrors(<GlobalNavBar categories={categories} />)
+
+    const menu = container.querySelector<HTMLButtonElement>(
+      "button[aria-label='Ouvrir les catégories']"
+    )!
+    act(() => menu.click())
+
+    const deplier = container.querySelector<HTMLButtonElement>(
+      "button[aria-label='Déplier Smartphones']"
+    )!
+    expect(deplier.getAttribute("aria-expanded")).toBe("false")
+
+    act(() => deplier.click())
+
+    expect(deplier.getAttribute("aria-expanded")).toBe("true")
+    expect(container.querySelector("#menu-categories")?.textContent).toContain(
+      "iPhone"
+    )
+    expect(container.querySelector("#menu-categories")?.textContent).toContain(
+      "Samsung"
+    )
+  })
 })
