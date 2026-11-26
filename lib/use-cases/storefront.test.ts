@@ -959,7 +959,6 @@ describe("storefront browse", () => {
 
     expect(racine.children).toEqual([{ name: "Enfant", slug: cSlug("child") }])
     expect(racine.brands).toEqual(["Samsung", "Apple"])
-    expect(racine.productCount).toBe(3)
     expect(autre.children).toEqual([])
     expect(autre.brands).toEqual([])
   })

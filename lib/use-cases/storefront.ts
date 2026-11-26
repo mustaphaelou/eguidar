@@ -47,9 +47,8 @@ export interface NavSubcategory {
 export interface NavCategory {
   name: string
   slug: string
-  children?: readonly NavSubcategory[]
-  brands?: readonly string[]
-  productCount?: number
+  children: readonly NavSubcategory[]
+  brands: readonly string[]
 }
 
 export interface CategoryPageData {
@@ -177,7 +176,6 @@ export async function fetchNavCategories(): Promise<NavCategory[]> {
       slug: racine.slug,
       children: racine.children.map(({ name, slug }) => ({ name, slug })),
       brands,
-      productCount: racine.productCount,
     }
   })
 }

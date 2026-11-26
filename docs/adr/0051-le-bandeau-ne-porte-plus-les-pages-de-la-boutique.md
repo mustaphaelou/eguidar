@@ -78,3 +78,22 @@ c'est le déclencheur du Panier qui referme l'Aperçu à toutes les tailles. Le 
 le Compte resterait inatteignable hors des écrans étroits — mais sa seconde moitié ne se lit plus ;
 l'amendement correspondant est écrit dans
 [0037](0037-le-bandeau-na-plus-quune-entree-vers-le-compte.md).
+
+## Amendement — Les Structures et leur Feuille de navigation dans le Bandeau (#1151, 2026-11-26)
+
+Aucune phrase de la décision n'est réécrite ; deux passages se lisent désormais avec cet amendement.
+
+- **L'invariant contre les pages de la boutique tient intact.** À propos (`/a-propos`), Contact
+  (`/contact`), FAQ (`/faq`), Blog (`/blog`) et Conditions & livraison (`/conditions`) restent hors
+  du **Bandeau de navigation** et de toute **Feuille de navigation** : seul le **Pied de page** les
+  porte. L'unicité du déclencheur de l'**Aperçu du Panier** et l'absence de contrôle du Compte
+  ([0037](0037-le-bandeau-na-plus-quune-entree-vers-le-compte.md)) tiennent également.
+
+- **L'option rejetée « Mettre les six Structures dans le Bandeau à la place des pages » est levée.**
+  Le **Bandeau de navigation** porte désormais les **Structures** racines (en rangée sur grand écran
+  et dans un menu dédié sur petit écran), et chacune ouvre une **Feuille de navigation** par-dessus
+  un **Voile sombre** donnant accès à ses sous-catégories, à ses marques principales via la
+  grammaire d'URL de la **Recherche** (`buildSearchHref`), aux tris de `SEARCH_SORT_OPTIONS` et au
+  **Catalogue** (`/produits`). La **Recherche** du Bandeau emprunte la même **Feuille de
+  navigation**. Le glossaire gagne l'entrée **Feuille de navigation** et amende **Bandeau de
+  navigation** et **Voile dépoli**.

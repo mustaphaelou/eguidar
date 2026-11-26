@@ -41,7 +41,11 @@ const GRILLE_DU_PIED: Readonly<Partial<Record<number, string>>> = {
 
 const GRILLE_PAR_DEFAUT = "md:grid-cols-4"
 
-function contenuDuPiedDePage(structures: readonly NavCategory[]): PiedDePage {
+type StructureDuPied = Pick<NavCategory, "name" | "slug">
+
+function contenuDuPiedDePage(
+  structures: readonly StructureDuPied[]
+): PiedDePage {
   const catalogue: SectionDuPiedDePage = {
     id: "la-boutique",
     titre: "La boutique",
@@ -152,7 +156,7 @@ function SectionDuPiedDePage({ section }: { section: SectionDuPiedDePage }) {
 export function StorefrontFooter({
   structures = [],
 }: {
-  structures?: readonly NavCategory[]
+  structures?: readonly StructureDuPied[]
 }) {
   const piedDePage = contenuDuPiedDePage(structures)
   const [licence, ...documents] = piedDePage.mentions.liens

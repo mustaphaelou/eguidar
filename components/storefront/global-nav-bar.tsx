@@ -1,12 +1,6 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -20,8 +14,6 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/storefront/logo"
-import { PanneauNavigation } from "@/components/storefront/panneau-navigation"
-import { SearchSuggestions } from "@/components/storefront/search-suggestions"
 import { CONTENEUR_BOUTIQUE } from "@/lib/conteneur-boutique"
 import { buildSearchHref } from "@/lib/search-params"
 import { site } from "@/lib/site"
@@ -30,6 +22,13 @@ import { cn } from "@/lib/utils"
 import { ID_APERCU_DU_PANIER } from "./apercu-du-panier-identifiants"
 import { useApercuDuPanier } from "./apercu-du-panier-provider"
 import { ApercuDuPanierSurface } from "./apercu-du-panier-surface"
+import {
+  estPointeurFin,
+  FeuilleRecherche,
+  FeuilleStructure,
+  MenuMobileStructures,
+  type LienDeFeuille,
+} from "./feuille-navigation"
 
 const DELAI_OUVERTURE_MS = 80
 const DELAI_FERMETURE_MS = 140
@@ -63,11 +62,11 @@ export function GlobalNavBar({
   const panierRef = useRef<HTMLButtonElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const menuPanelRef = useRef<HTMLDivElement>(null)
-  const navPanelRef = useRef<HTMLDivElement>(null)
+  const feuilleRef = useRef<HTMLDivElement>(null)
   const categorieRefs = useRef<Map<string, HTMLAnchorElement>>(new Map())
   const ouvertureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fermetureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const focaliserPanneauAuProchainRendu = useRef(false)
+  const focaliserFeuilleAuProchainRendu = useRef(false)
 
   const aUneNavigation = categories.length > 0
   const categorieActive =
@@ -76,7 +75,7 @@ export function GlobalNavBar({
       : (categories.find(
           (categorie) => categorie.slug === categorieOuverteSlug
         ) ?? null)
-  const unPanneauEstOuvert =
+  const uneFeuilleEstOuverte =
     ouvert || searchOpen || menuOpen || categorieActive !== null
 
   const annulerDelais = useCallback(() => {
@@ -90,7 +89,7 @@ export function GlobalNavBar({
     }
   }, [])
 
-  const fermerPanneauCategorie = useCallback(
+  const fermerFeuilleCategorie = useCallback(
     (rendreLeFocus = false) => {
       annulerDelais()
       const slugCourant = categorieOuverteSlug
@@ -143,8 +142,7 @@ export function GlobalNavBar({
     basculer()
   }
 
-  function survolCategorie(slug: string, pointerType: string) {
-    if (pointerType !== "mouse") return
+  function survolCategorie(slug: string) {
     annulerDelais()
     if (ouvert || searchOpen || menuOpen) return
     if (categorieOuverteSlug !== null) {
@@ -157,19 +155,16 @@ export function GlobalNavBar({
     }, DELAI_OUVERTURE_MS)
   }
 
-  function quitterBandeau(pointerType: string) {
-    if (pointerType !== "mouse") return
+  const programmerFermetureCategorie = useCallback(() => {
     annulerDelais()
     if (categorieOuverteSlug === null) return
     fermetureTimerRef.current = setTimeout(() => {
       fermetureTimerRef.current = null
       setCategorieOuverteSlug(null)
     }, DELAI_FERMETURE_MS)
-  }
+  }, [annulerDelais, categorieOuverteSlug])
 
-  useEffect(() => {
-    return () => annulerDelais()
-  }, [annulerDelais])
+  useEffect(() => annulerDelais, [annulerDelais])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 0)
@@ -190,9 +185,9 @@ export function GlobalNavBar({
   }, [menuOpen])
 
   useEffect(() => {
-    if (!categorieActive || !focaliserPanneauAuProchainRendu.current) return
-    focaliserPanneauAuProchainRendu.current = false
-    navPanelRef.current
+    if (!categorieActive || !focaliserFeuilleAuProchainRendu.current) return
+    focaliserFeuilleAuProchainRendu.current = false
+    feuilleRef.current
       ?.querySelector<HTMLAnchorElement>("a")
       ?.focus({ preventScroll: true })
   }, [categorieActive])
@@ -210,16 +205,24 @@ export function GlobalNavBar({
   }, [menuOpen, fermerMenuMobile])
 
   useEffect(() => {
-    if (!categorieActive) return
+    if (!categorieActive && !searchOpen) return
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return
       event.preventDefault()
-      fermerPanneauCategorie(true)
+      if (categorieActive) {
+        fermerFeuilleCategorie(true)
+      } else {
+        fermerRecherche(true)
+      }
     }
 
     function onScroll() {
-      fermerPanneauCategorie(false)
+      if (categorieActive) {
+        fermerFeuilleCategorie(false)
+      } else {
+        fermerRecherche(false)
+      }
     }
 
     document.addEventListener("keydown", onKeyDown)
@@ -228,30 +231,9 @@ export function GlobalNavBar({
       document.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("scroll", onScroll)
     }
-  }, [categorieActive, fermerPanneauCategorie])
+  }, [categorieActive, searchOpen, fermerFeuilleCategorie, fermerRecherche])
 
-  useEffect(() => {
-    if (!searchOpen) return
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return
-      event.preventDefault()
-      fermerRecherche(true)
-    }
-
-    function onScroll() {
-      fermerRecherche(false)
-    }
-
-    document.addEventListener("keydown", onKeyDown)
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => {
-      document.removeEventListener("keydown", onKeyDown)
-      window.removeEventListener("scroll", onScroll)
-    }
-  }, [searchOpen, fermerRecherche])
-
-  const liensRapidesRecherche = aUneNavigation
+  const liensRapidesRecherche: readonly LienDeFeuille[] = aUneNavigation
     ? [
         ...categories.slice(0, 5).map((categorie) => ({
           label: categorie.name,
@@ -264,12 +246,14 @@ export function GlobalNavBar({
   return (
     <header
       onPointerEnter={annulerDelais}
-      onPointerLeave={(event) => quitterBandeau(event.pointerType)}
+      onPointerLeave={(event) => {
+        if (estPointeurFin(event)) programmerFermetureCategorie()
+      }}
       className={cn(
         "sticky inset-bs-0 pbs-[env(safe-area-inset-top,0px)] transition-[background-color,box-shadow] duration-200 ease-out",
-        unPanneauEstOuvert ? "z-50 bg-background" : "z-40",
+        uneFeuilleEstOuverte ? "z-50" : "z-40",
         scrolled &&
-          !unPanneauEstOuvert &&
+          !uneFeuilleEstOuverte &&
           "voile-depoli filet-bas [--voile-depoli-opacite:80%]"
       )}
     >
@@ -285,7 +269,7 @@ export function GlobalNavBar({
           className="shrink-0 transition-opacity duration-150 ease-out active:opacity-70"
           aria-label={`${site.name} — Accueil`}
           onClick={() => {
-            fermerPanneauCategorie(false)
+            fermerFeuilleCategorie(false)
             fermerRecherche(false)
             fermerMenuMobile(false)
           }}
@@ -315,13 +299,15 @@ export function GlobalNavBar({
                       aria-expanded={estActive}
                       aria-controls={
                         estActive
-                          ? `panneau-categorie-${categorie.slug}`
+                          ? `feuille-categorie-${categorie.slug}`
                           : undefined
                       }
-                      onPointerEnter={(event) =>
-                        survolCategorie(categorie.slug, event.pointerType)
-                      }
-                      onClick={() => fermerPanneauCategorie(false)}
+                      onPointerEnter={(event) => {
+                        if (estPointeurFin(event)) {
+                          survolCategorie(categorie.slug)
+                        }
+                      }}
+                      onClick={() => fermerFeuilleCategorie(false)}
                       onKeyDown={(event) => {
                         if (event.key !== "ArrowDown") return
                         event.preventDefault()
@@ -329,7 +315,7 @@ export function GlobalNavBar({
                         fermer()
                         setSearchOpen(false)
                         setMenuOpen(false)
-                        focaliserPanneauAuProchainRendu.current = true
+                        focaliserFeuilleAuProchainRendu.current = true
                         setCategorieOuverteSlug(categorie.slug)
                       }}
                       className={cn(
@@ -429,194 +415,42 @@ export function GlobalNavBar({
       </div>
 
       {categorieActive ? (
-        <PanneauNavigation
+        <FeuilleStructure
           categorie={categorieActive}
-          panelRef={navPanelRef}
-          onClose={() => fermerPanneauCategorie(false)}
-          onNavigate={() => fermerPanneauCategorie(false)}
-          onBackdropPointerEnter={quitterBandeau}
+          panelRef={feuilleRef}
+          onClose={() => fermerFeuilleCategorie(false)}
+          onNavigate={() => fermerFeuilleCategorie(false)}
+          onBackdropFinePointerEnter={programmerFermetureCategorie}
           onPanelPointerEnter={annulerDelais}
         />
       ) : null}
 
       {aUneNavigation ? (
-        <div
-          ref={menuPanelRef}
-          id="menu-categories"
-          hidden={!menuOpen}
-          data-slot={menuOpen ? "panneau-navigation" : undefined}
-          className="absolute inset-x-0 inset-bs-11 z-10 h-[calc(100dvh-2.75rem)] overflow-y-auto bg-background lg:hidden"
-        >
-          <nav
-            aria-label="Catégories"
-            className={cn(CONTENEUR_BOUTIQUE, "pbs-6 pbe-12")}
-          >
-            <ul className="flex flex-col gap-1">
-              {categories.map((categorie, index) => {
-                const enfants = categorie.children ?? []
-                const marques = categorie.brands ?? []
-                const aDesDetails = enfants.length > 0 || marques.length > 0
-                const estDepliee = categorieMobileOuverte === categorie.slug
-                return (
-                  <li
-                    key={categorie.slug}
-                    data-slot={menuOpen ? "element-navigation" : undefined}
-                    style={{ "--rang-element": index } as CSSProperties}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <Link
-                        href={`/categorie/${categorie.slug}`}
-                        onClick={() => fermerMenuMobile(false)}
-                        className="flex flex-1 items-center text-[24px] leading-[1.2] font-semibold tracking-[-0.02em] text-encre-menu transition-[color,opacity] duration-150 ease-out min-block-11 active:opacity-70 [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
-                      >
-                        {categorie.name}
-                      </Link>
-                      {aDesDetails ? (
-                        <button
-                          type="button"
-                          aria-label={
-                            estDepliee
-                              ? `Réduire ${categorie.name}`
-                              : `Déplier ${categorie.name}`
-                          }
-                          aria-expanded={estDepliee}
-                          onClick={() =>
-                            setCategorieMobileOuverte(
-                              estDepliee ? null : categorie.slug
-                            )
-                          }
-                          className="zone-tactile inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-[color,opacity] duration-150 ease-out active:opacity-70 [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
-                        >
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 16 16"
-                            className={cn(
-                              "size-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out",
-                              estDepliee && "rotate-180"
-                            )}
-                            fill="none"
-                          >
-                            <path
-                              d="m4 6 4 4 4-4"
-                              stroke="currentColor"
-                              strokeWidth={1.5}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                      ) : null}
-                    </div>
-
-                    {aDesDetails && estDepliee ? (
-                      <div className="border-is pis-4 mbs-1 mbe-3 flex flex-col gap-3 border-hairline">
-                        {enfants.length > 0 ? (
-                          <ul className="flex flex-col gap-0.5">
-                            {enfants.map((enfant) => (
-                              <li key={enfant.slug}>
-                                <Link
-                                  href={`/categorie/${enfant.slug}`}
-                                  onClick={() => fermerMenuMobile(false)}
-                                  className="flex items-center text-[15px] leading-[1.35] font-medium text-encre-menu transition-[color,opacity] duration-150 ease-out min-block-9 active:opacity-70 [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
-                                >
-                                  {enfant.name}
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                        {marques.length > 0 ? (
-                          <div className="flex flex-col gap-1">
-                            <p className="text-[12px] leading-[1.3334] tracking-[-0.01em] text-muted-foreground">
-                              Par marque
-                            </p>
-                            <ul className="flex flex-wrap gap-1.5">
-                              {marques.map((marque) => (
-                                <li key={marque}>
-                                  <Link
-                                    href={buildSearchHref(
-                                      "",
-                                      {
-                                        categorySlug: categorie.slug,
-                                        brand: [marque],
-                                      },
-                                      {},
-                                      {},
-                                      "/produits"
-                                    )}
-                                    onClick={() => fermerMenuMobile(false)}
-                                    className="inline-flex items-center rounded-full bg-muted px-3 py-1 text-[12px] leading-[1.3334] font-medium text-encre-menu transition-[background-color,color,opacity] duration-150 ease-out active:opacity-70 [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
-                                  >
-                                    {marque}
-                                  </Link>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </li>
-                )
-              })}
-            </ul>
-          </nav>
-        </div>
+        <MenuMobileStructures
+          categories={categories}
+          ouvert={menuOpen}
+          categorieDepliee={categorieMobileOuverte}
+          menuPanelRef={menuPanelRef}
+          onBasculerCategorie={(slug) =>
+            setCategorieMobileOuverte((precedente) =>
+              precedente === slug ? null : slug
+            )
+          }
+          onNavigate={() => fermerMenuMobile(false)}
+        />
       ) : null}
 
       {searchOpen ? (
-        <>
-          <div
-            data-slot="voile-navigation"
-            aria-hidden="true"
-            className="voile-floute fixed inset-0 z-0 bg-voile-navigation"
-            onClick={() => fermerRecherche(true)}
-          />
-          <div
-            data-slot="panneau-navigation"
-            className="absolute inset-x-0 inset-bs-0 z-10 bg-background pbs-11 shadow-[0_24px_48px_-32px_oklch(0.2_0_none/0.22)]"
-          >
-            <div className={cn(CONTENEUR_BOUTIQUE, "pbs-6 pbe-10")}>
-              <form
-                method="GET"
-                action="/recherche"
-                className="relative flex flex-col"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  const query = String(
-                    new FormData(event.currentTarget).get("q") ?? ""
-                  ).trim()
-                  setSearchOpen(false)
-                  router.push(buildSearchHref(query, {}, {}, {}, "/recherche"))
-                }}
-              >
-                <SearchSuggestions
-                  inputRef={searchInputRef}
-                  variant="rideau"
-                  quickLinks={liensRapidesRecherche}
-                  onEscape={() => fermerRecherche(true)}
-                  onNavigate={() => setSearchOpen(false)}
-                  leading={
-                    <HugeiconsIcon
-                      icon={Search01Icon}
-                      strokeWidth={2}
-                      className="size-5 shrink-0 text-muted-foreground"
-                    />
-                  }
-                  trailing={
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="shrink-0 rounded-full motion-safe:active:scale-[0.97]"
-                    >
-                      Rechercher
-                    </Button>
-                  }
-                />
-              </form>
-            </div>
-          </div>
-        </>
+        <FeuilleRecherche
+          inputRef={searchInputRef}
+          liensRapides={liensRapidesRecherche}
+          onClose={() => fermerRecherche(true)}
+          onNavigate={() => setSearchOpen(false)}
+          onSubmitQuery={(query) => {
+            setSearchOpen(false)
+            router.push(buildSearchHref(query, {}, {}, {}, "/recherche"))
+          }}
+        />
       ) : null}
 
       {ouvert ? (

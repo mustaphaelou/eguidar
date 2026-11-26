@@ -92,7 +92,7 @@ export function ApercuDuPanierSurface({
       <div
         data-slot="voile-sombre"
         aria-hidden="true"
-        className="voile-floute fixed inset-0 z-0 bg-voile-sombre"
+        className="fixed inset-0 z-0 bg-voile-sombre"
         onClick={onClose}
       />
 
@@ -104,12 +104,12 @@ export function ApercuDuPanierSurface({
         aria-modal="true"
         aria-labelledby={ID_TITRE_APERCU_DU_PANIER}
         tabIndex={-1}
-        className="voile-depoli rounded-be-[28px] max-lg:rounded-be-none absolute inset-x-0 inset-bs-0 z-10 pbs-11 shadow-[0_24px_48px_-28px_oklch(0.2_0_none/0.3)] ring-1 ring-hairline outline-none [--voile-depoli-flou:20px] [--voile-depoli-opacite:96%] [--voile-depoli-saturation:180%] max-lg:h-dvh"
+        className="voile-depoli absolute inset-x-0 top-0 z-10 rounded-b-[28px] pt-11 shadow-[0_20px_48px_-24px_oklch(0.2_0_none/0.35)] ring-1 ring-black/5 outline-none [--voile-depoli-flou:20px] [--voile-depoli-opacite:86%] [--voile-depoli-saturation:180%] max-lg:h-dvh max-lg:rounded-b-none"
       >
         <div
           className={cn(
             CONTENEUR_BOUTIQUE,
-            "max-h-[calc(100dvh-2.75rem)] overflow-y-auto pbs-6 pbe-8"
+            "max-h-[calc(100dvh-2.75rem)] overflow-y-auto pt-6 pb-8"
           )}
         >
           {children}

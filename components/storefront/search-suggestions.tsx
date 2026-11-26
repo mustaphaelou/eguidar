@@ -4,6 +4,10 @@ import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
+import { Search01Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { urlProduit } from "@/lib/carte-produit"
 import { SLUG_SANS_STRUCTURE } from "@/lib/index-projection"
@@ -14,6 +18,8 @@ import type {
   SuggestionProduit,
 } from "@/lib/use-cases/search"
 import { cn } from "@/lib/utils"
+
+import type { LienDeFeuille } from "./feuille-navigation"
 
 export function hrefDeSuggestion(slug: string): string {
   return slug === SLUG_SANS_STRUCTURE
@@ -27,18 +33,14 @@ export function SearchSuggestions({
   inputRef,
   onEscape,
   onNavigate,
-  variant = "bandeau",
+  surface = "bandeau",
   quickLinks = [],
-  leading,
-  trailing,
 }: {
   inputRef: React.RefObject<HTMLInputElement | null>
   onEscape: () => void
   onNavigate: () => void
-  variant?: "bandeau" | "rideau"
-  quickLinks?: readonly { label: string; href: string }[]
-  leading?: React.ReactNode
-  trailing?: React.ReactNode
+  surface?: "bandeau" | "feuille"
+  quickLinks?: readonly LienDeFeuille[]
 }) {
   const [query, setQuery] = useState("")
   const [result, setResult] = useState<{
@@ -89,14 +91,20 @@ export function SearchSuggestions({
     resultQuery === query.trim() &&
     (result.products.length > 0 || result.categories.length > 0)
 
-  const estRideau = variant === "rideau"
+  const estFeuille = surface === "feuille"
   const montrerLiensRapides =
-    estRideau && !showDropdown && quickLinks.length > 0
+    estFeuille && !showDropdown && quickLinks.length > 0
 
   return (
     <div ref={containerRef} className="w-full min-w-0 flex-1">
       <div className="flex items-center gap-2.5">
-        {leading}
+        {estFeuille ? (
+          <HugeiconsIcon
+            icon={Search01Icon}
+            strokeWidth={2}
+            className="size-5 shrink-0 text-muted-foreground"
+          />
+        ) : null}
         <Input
           ref={inputRef}
           name="q"
@@ -105,7 +113,7 @@ export function SearchSuggestions({
           placeholder="Chercher"
           className={cn(
             "min-w-0 flex-1",
-            estRideau
+            estFeuille
               ? "h-10 border-0 bg-transparent px-0 text-[17px] font-semibold tracking-[-0.015em] shadow-none focus-visible:ring-0 sm:h-11 sm:text-[24px] sm:tracking-[-0.02em]"
               : "h-8 rounded-full"
           )}
@@ -119,14 +127,22 @@ export function SearchSuggestions({
             }
           }}
         />
-        {trailing}
+        {estFeuille ? (
+          <Button
+            type="submit"
+            size="sm"
+            className="shrink-0 rounded-full motion-safe:active:scale-[0.97]"
+          >
+            Rechercher
+          </Button>
+        ) : null}
       </div>
 
       {showDropdown ? (
         <div
           className={cn(
             "overflow-clip rounded-2xl bg-popover text-popover-foreground ring-1 ring-hairline",
-            estRideau
+            estFeuille
               ? "mbs-4"
               : "absolute inset-x-0 inset-bs-full z-50 mbs-2 shadow-2xl"
           )}
@@ -200,7 +216,7 @@ export function SearchSuggestions({
 
       {montrerLiensRapides ? (
         <div
-          data-slot="colonne-navigation"
+          data-slot="colonne-feuille"
           className="mbs-6 border-bs border-hairline pbs-5"
         >
           <p className="mbe-2.5 text-[12px] leading-[1.3334] font-normal tracking-[-0.01em] text-muted-foreground">

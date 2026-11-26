@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest"
 
-import { colonnesDuPanneau } from "./panneau-navigation"
+import { SEARCH_SORT_DEFAULT, SEARCH_SORT_OPTIONS } from "@/lib/search-params"
 
-describe("colonnesDuPanneau", () => {
+import { colonnesDeLaFeuille, hrefMarqueCategorie } from "./feuille-navigation"
+
+describe("colonnesDeLaFeuille", () => {
+  const libellesTrisAttendus = [
+    ...SEARCH_SORT_OPTIONS.filter(
+      (option) => option.id !== SEARCH_SORT_DEFAULT
+    ).map((option) => option.label),
+    "Tout le catalogue",
+  ]
+
   it("produit trois colonnes quand sous-catégories et marques coexistent", () => {
-    const colonnes = colonnesDuPanneau({
+    const colonnes = colonnesDeLaFeuille({
       name: "Smartphones",
       slug: "smartphones",
       children: [
@@ -32,23 +41,20 @@ describe("colonnesDuPanneau", () => {
     expect(colonnes[1]?.liens).toEqual([
       {
         label: "Apple",
-        href: "/produits?marque=Apple&categorie=smartphones",
+        href: hrefMarqueCategorie("smartphones", "Apple"),
       },
       {
         label: "Samsung",
-        href: "/produits?marque=Samsung&categorie=smartphones",
+        href: hrefMarqueCategorie("smartphones", "Samsung"),
       },
     ])
-    expect(colonnes[2]?.liens.map((lien) => lien.label)).toEqual([
-      "Nouveautés",
-      "Prix croissant",
-      "Prix décroissant",
-      "Tout le catalogue",
-    ])
+    expect(colonnes[2]?.liens.map((lien) => lien.label)).toEqual(
+      libellesTrisAttendus
+    )
   })
 
   it("efface la colonne des marques quand aucune marque n'existe", () => {
-    const colonnes = colonnesDuPanneau({
+    const colonnes = colonnesDeLaFeuille({
       name: "Audio",
       slug: "audio",
       children: [{ name: "Casques", slug: "casques" }],
@@ -62,7 +68,7 @@ describe("colonnesDuPanneau", () => {
   })
 
   it("élève les marques en colonne principale lorsqu'il n'y a pas de sous-catégorie", () => {
-    const colonnes = colonnesDuPanneau({
+    const colonnes = colonnesDeLaFeuille({
       name: "Accessoires",
       slug: "accessoires",
       children: [],
@@ -77,19 +83,21 @@ describe("colonnesDuPanneau", () => {
       { label: "Tout Accessoires", href: "/categorie/accessoires" },
       {
         label: "Anker",
-        href: "/produits?marque=Anker&categorie=accessoires",
+        href: hrefMarqueCategorie("accessoires", "Anker"),
       },
       {
         label: "Logitech",
-        href: "/produits?marque=Logitech&categorie=accessoires",
+        href: hrefMarqueCategorie("accessoires", "Logitech"),
       },
     ])
   })
 
   it("reste propre avec deux colonnes quand la catégorie est vide de sous-catégories et de marques", () => {
-    const colonnes = colonnesDuPanneau({
+    const colonnes = colonnesDeLaFeuille({
       name: "Gaming",
       slug: "gaming",
+      children: [],
+      brands: [],
     })
 
     expect(colonnes.map((colonne) => colonne.id)).toEqual([
