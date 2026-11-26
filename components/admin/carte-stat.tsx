@@ -33,6 +33,7 @@ export function CarteStat({
   valueClassName = VALEUR_CHIFFRE,
   variant = "defaut",
   legende,
+  badge,
 }: {
   label: string
   value: React.ReactNode
@@ -43,6 +44,7 @@ export function CarteStat({
   valueClassName?: string
   variant?: "defaut" | "hero" | "chiffre"
   legende?: React.ReactNode
+  badge?: React.ReactNode
 }) {
   if (variant === "chiffre") {
     const classes = cn(
@@ -67,53 +69,54 @@ export function CarteStat({
     <Card
       size="sm"
       className={cn(
-        "h-full gap-3",
+        "h-full justify-between gap-3 border border-border/60",
         cliquable ? CARTE_CLIQUABLE : undefined,
         cliquable &&
           "has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring"
       )}
     >
-      <CardHeader>
+      <CardHeader className="items-center">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {label}
         </CardTitle>
         {icon ? (
-          <CardAction className="hidden sm:block">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <CardAction>
+            <span className="flex size-8 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground">
               <HugeiconsIcon icon={icon} strokeWidth={2} className="size-4" />
             </span>
           </CardAction>
         ) : null}
       </CardHeader>
-      <CardContent className="@container">
-        <p
-          className={cn(
-            "font-semibold tracking-tight break-normal tabular-nums",
-            valueClassName
-          )}
-        >
-          {cliquable ? (
-            <Link
-              href={href}
-              aria-label={action}
-              className={cn(
-                "inline-block underline-offset-4 after:absolute after:inset-0 after:content-['']",
-                SURVOL_SOULIGNE
-              )}
-            >
-              {value}
-            </Link>
-          ) : (
-            value
-          )}
-        </p>
-        {hint ? (
-          <p className="mt-1 text-xs text-balance text-muted-foreground">
-            {hint}
+      <CardContent className="@container flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p
+            className={cn(
+              "font-semibold tracking-tight break-normal tabular-nums",
+              valueClassName
+            )}
+          >
+            {cliquable ? (
+              <Link
+                href={href}
+                aria-label={action}
+                className={cn(
+                  "inline-block underline-offset-4 after:absolute after:inset-0 after:content-['']",
+                  SURVOL_SOULIGNE
+                )}
+              >
+                {value}
+              </Link>
+            ) : (
+              value
+            )}
           </p>
+          {badge ?? null}
+        </div>
+        {hint ? (
+          <p className="text-xs text-balance text-muted-foreground">{hint}</p>
         ) : null}
         {variant === "hero" && legende ? (
-          <p className="mt-1 text-xs text-muted-foreground">{legende}</p>
+          <p className="text-xs text-muted-foreground">{legende}</p>
         ) : null}
       </CardContent>
     </Card>

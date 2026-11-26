@@ -99,7 +99,8 @@ describe("la calme de la surveillance", () => {
     )?.[1]
     expect(rupture).toContain("bg-destructive/10")
 
-    expect(html).toContain("&gt;li]:border-hairline/60")
+    expect(html).toContain('data-slot="table"')
+    expect(html).toContain("border-hairline/60")
   })
 
   it("dit le calme une seule fois, avec un filet léger et de l'air", async () => {
