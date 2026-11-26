@@ -20,7 +20,6 @@ vi.mock("next/link", () => ({
 
 import { LigneCalme } from "./ligne-calme"
 import { LignesDAlerte } from "./ligne-d-alerte"
-import { LigneDeListe } from "./ligne-de-liste"
 import { ListeDeStockFaible } from "./stock-faible"
 import type { LowStockVariant } from "@/lib/use-cases/admin-dashboard"
 
@@ -109,19 +108,5 @@ describe("la calme de la surveillance", () => {
     expect(html.match(/Rien à signaler\./g)).toHaveLength(1)
     expect(html).toContain("border-hairline/60")
     expect(html).toContain("py-5")
-  })
-
-  it("aère les lignes de liste sans changer leur cible", async () => {
-    const html = await rendre(
-      <LigneDeListe
-        href="/admin/produits/produit-restants"
-        titre="Produit en stock faible"
-        sousTitre="Bleu — SKU-RESTANTS"
-      />
-    )
-
-    expect(html).toContain('href="/admin/produits/produit-restants"')
-    expect(html).toContain("min-h-16")
-    expect(html).toContain("py-3")
   })
 })

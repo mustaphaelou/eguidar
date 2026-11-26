@@ -17,7 +17,6 @@ export function ListeDeStockFaible({
   className,
 }: {
   stock: LowStockVariant[]
-  colonnesAuLg?: boolean
   className?: string
 }) {
   if (stock.length === 0) return null
@@ -27,27 +26,24 @@ export function ListeDeStockFaible({
       <TableHeader>
         <TableRow className="border-hairline/60 hover:bg-transparent">
           <TableHead className="ps-(--card-spacing)">Produit</TableHead>
-          <TableHead>Variante</TableHead>
-          <TableHead className="hidden sm:table-cell">SKU</TableHead>
           <TableHead className="pe-(--card-spacing) text-end">Stock</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {stock.map((variante) => (
           <TableRow key={variante.id} className="relative border-hairline/60">
-            <TableCell className="ps-(--card-spacing) font-medium">
-              <Link
-                href={`/admin/produits/${variante.productId}`}
-                className="underline-offset-4 after:absolute after:inset-0 after:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
-              >
-                {variante.productName}
-              </Link>
-            </TableCell>
-            <TableCell className="text-muted-foreground">
-              {variante.name}
-            </TableCell>
-            <TableCell className="hidden font-mono text-xs text-muted-foreground sm:table-cell">
-              {variante.sku}
+            <TableCell className="ps-(--card-spacing) whitespace-normal">
+              <div className="flex flex-col gap-0.5">
+                <Link
+                  href={`/admin/produits/${variante.productId}`}
+                  className="font-medium underline-offset-4 after:absolute after:inset-0 after:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+                >
+                  {variante.productName}
+                </Link>
+                <span className="text-xs text-muted-foreground">
+                  {variante.name} — {variante.sku}
+                </span>
+              </div>
             </TableCell>
             <TableCell className="pe-(--card-spacing) text-end">
               <Badge

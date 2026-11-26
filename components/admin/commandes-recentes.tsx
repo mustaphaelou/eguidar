@@ -83,7 +83,6 @@ export function CommandesRecentes({
             <TableHeader>
               <TableRow className="border-hairline/60 hover:bg-transparent">
                 <TableHead className="ps-(--card-spacing)">Commande</TableHead>
-                <TableHead>Statut</TableHead>
                 <TableHead className="pe-(--card-spacing) text-end">
                   Montant
                 </TableHead>
@@ -95,21 +94,21 @@ export function CommandesRecentes({
                   key={order.id}
                   className="relative border-hairline/60"
                 >
-                  <TableCell className="ps-(--card-spacing)">
-                    <div className="flex flex-col">
+                  <TableCell className="ps-(--card-spacing) whitespace-normal">
+                    <div className="flex flex-col gap-1">
                       <Link
                         href={`/admin/commandes/${order.id}`}
                         className="font-medium underline-offset-4 after:absolute after:inset-0 after:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
                       >
                         {shortOrderId(order.id)}
                       </Link>
-                      <span className="text-xs text-muted-foreground">
-                        {`${dateFormatter.format(order.createdAt)} — ${order.itemCount} article${order.itemCount > 1 ? "s" : ""}`}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-xs text-muted-foreground">
+                          {`${dateFormatter.format(order.createdAt)} — ${order.itemCount} article${order.itemCount > 1 ? "s" : ""}`}
+                        </span>
+                        <OrderStatusBadge status={order.status} />
+                      </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <OrderStatusBadge status={order.status} />
                   </TableCell>
                   <TableCell className="pe-(--card-spacing) text-end font-medium tabular-nums">
                     {formatPrice(order.totalPayable)}

@@ -8,7 +8,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { CarteStat } from "@/components/admin/carte-stat"
+import { CarteStat, VALEUR_MONETAIRE } from "@/components/admin/carte-stat"
 import { Badge } from "@/components/ui/badge"
 import { buildCommandeListingUrl } from "@/lib/commande-listing"
 import { formatPrice } from "@/lib/money"
@@ -21,7 +21,11 @@ const percentFormatter = new Intl.NumberFormat("fr-FR", {
 
 function BadgeDeVariation({ delta }: { delta: number | undefined }) {
   if (delta === undefined) {
-    return null
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        Pas encore de comparaison
+      </Badge>
+    )
   }
 
   const positif = delta > 0
@@ -29,8 +33,12 @@ function BadgeDeVariation({ delta }: { delta: number | undefined }) {
 
   return (
     <Badge
-      variant={nul ? "secondary" : positif ? "secondary" : "destructive"}
-      className={cn("tabular-nums", positif && "bg-succes-fond text-succes")}
+      variant={positif || nul ? "secondary" : "destructive"}
+      className={cn(
+        "tabular-nums",
+        positif && "bg-succes-fond text-succes",
+        nul && "text-muted-foreground"
+      )}
     >
       {nul ? null : (
         <HugeiconsIcon
@@ -52,50 +60,51 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
   return (
     <section
       aria-label="Indicateurs principaux"
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      className="flex flex-col gap-4"
     >
       <CarteStat
+        variant="hero"
         label="Chiffre d'affaires net"
         value={formatPrice(stats.chiffreAffairesNet30j)}
-        valueClassName="text-2xl font-semibold tracking-tight whitespace-nowrap tabular-nums"
+        valueClassName={VALEUR_MONETAIRE}
         badge={<BadgeDeVariation delta={stats.variationChiffreAffairesNet} />}
-        hint={`Brut : ${formatPrice(stats.chiffreAffairesBrut30j)} · 30 derniers jours`}
+        hint={`Brut : ${formatPrice(stats.chiffreAffairesBrut30j)}`}
+        legende="30 derniers jours"
         icon={Wallet01Icon}
       />
 
-      <CarteStat
-        label="Commandes"
-        value={stats.ordersLast30}
-        valueClassName="text-2xl font-semibold tracking-tight tabular-nums"
-        hint="Reçues sur les 30 derniers jours"
-        icon={ShoppingBasket02Icon}
-        href="/admin/commandes"
-        action={`Commandes : ${stats.ordersLast30} — voir les commandes`}
-      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <CarteStat
+          label="Commandes"
+          value={stats.ordersLast30}
+          hint="Reçues sur les 30 derniers jours"
+          icon={ShoppingBasket02Icon}
+          href="/admin/commandes"
+          action={`Commandes : ${stats.ordersLast30} — voir les commandes`}
+        />
 
-      <CarteStat
-        label="En attente"
-        value={stats.pendingOrderCount}
-        valueClassName="text-2xl font-semibold tracking-tight tabular-nums"
-        hint="Commandes à traiter"
-        icon={Clock01Icon}
-        href={enAttenteUrl}
-        action={`Commandes en attente : ${stats.pendingOrderCount} — voir les commandes en attente`}
-      />
+        <CarteStat
+          label="En attente"
+          value={stats.pendingOrderCount}
+          hint="Commandes à traiter"
+          icon={Clock01Icon}
+          href={enAttenteUrl}
+          action={`Commandes en attente : ${stats.pendingOrderCount} — voir les commandes en attente`}
+        />
 
-      <CarteStat
-        label="Produits"
-        value={stats.productCount}
-        valueClassName="text-2xl font-semibold tracking-tight tabular-nums"
-        hint={
-          stats.outOfStockCount > 0
-            ? `${stats.outOfStockCount} en rupture de stock`
-            : "Catalogue actif"
-        }
-        icon={PackageIcon}
-        href="/admin/produits"
-        action={`Produits : ${stats.productCount} — voir les produits`}
-      />
+        <CarteStat
+          label="Produits"
+          value={stats.productCount}
+          hint={
+            stats.outOfStockCount > 0
+              ? `${stats.outOfStockCount} en rupture de stock`
+              : "Catalogue actif"
+          }
+          icon={PackageIcon}
+          href="/admin/produits"
+          action={`Produits : ${stats.productCount} — voir les produits`}
+        />
+      </div>
     </section>
   )
 }
