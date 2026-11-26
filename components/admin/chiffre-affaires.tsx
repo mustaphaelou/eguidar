@@ -29,10 +29,12 @@ export function CarteChiffreAffaires({
   className?: string
 }) {
   return (
-    <Card className={cn("flex h-full flex-col", className)}>
+    <Card
+      className={cn("flex h-full flex-col border border-border/60", className)}
+    >
       <CardHeader className="block">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex min-w-0 flex-col gap-1">
             <CardTitle>Évolution du chiffre d&apos;affaires</CardTitle>
             <CardDescription>
               Encaissements moins Remboursements, frais de livraison inclus.
@@ -56,7 +58,7 @@ export function CarteChiffreAffaires({
                     "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                     actif
                       ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground"
                   )}
                 >
                   {libelleCourtPeriode(choix)}

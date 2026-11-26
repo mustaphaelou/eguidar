@@ -3,6 +3,9 @@ import { Suspense } from "react"
 import Link from "next/link"
 import type { Metadata } from "next"
 
+import { PlusSignIcon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+
 import { CarteChiffreAffaires } from "@/components/admin/chiffre-affaires"
 import { CarteIndicateurs } from "@/components/admin/carte-indicateurs"
 import { CarteSurveillance } from "@/components/admin/carte-surveillance"
@@ -58,6 +61,11 @@ async function TableauDeBord({
         description="Les chiffres de la boutique, les Commandes à traiter et les points de vigilance."
         actions={
           <Button render={<Link href="/admin/produits/nouveau" />}>
+            <HugeiconsIcon
+              icon={PlusSignIcon}
+              strokeWidth={2}
+              data-icon="inline-start"
+            />
             Nouveau produit
           </Button>
         }
@@ -65,16 +73,16 @@ async function TableauDeBord({
 
       <CarteIndicateurs stats={stats} />
 
-      <div className="grid gap-4 lg:grid-cols-7">
+      <div className="grid gap-6 lg:grid-cols-12">
         <CarteChiffreAffaires
           data={stats.chiffreAffairesNet}
           periode={periode}
-          className="lg:col-span-4"
+          className="lg:col-span-7"
         />
         <CommandesRecentes
           commandes={stats.recentOrders}
           total={stats.orderCount}
-          className="lg:col-span-3"
+          className="lg:col-span-5"
         />
       </div>
 

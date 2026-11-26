@@ -203,4 +203,38 @@ test.describe("le tableau de bord de l'Administration sur téléphone", () => {
       `le montant occupe ${mesures.lignes} lignes à 320 px au lieu d'une`
     ).toBe(1)
   })
+
+  test("13. aucune table ne cache sa dernière colonne", async ({
+    page,
+    serveur,
+  }) => {
+    for (const taille of [
+      { width: 320, height: 568 },
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1280, height: 900 },
+    ]) {
+      await page.setViewportSize(taille)
+      await ouvrirLeTableauDeBord(page, serveur.origine)
+      await attendreLaMiseEnPage(page)
+
+      const debordements = await page.evaluate(() =>
+        [...document.querySelectorAll("[data-slot='table-container']")].flatMap(
+          (conteneur) => {
+            const debordement = conteneur.scrollWidth - conteneur.clientWidth
+            return debordement > 0
+              ? [
+                  `${conteneur.scrollWidth} px rendus pour ${conteneur.clientWidth} px`,
+                ]
+              : []
+          }
+        )
+      )
+
+      expect(
+        debordements,
+        `à ${taille.width} × ${taille.height}, une table déborde de sa carte : ${debordements.join(", ")}`
+      ).toEqual([])
+    }
+  })
 })

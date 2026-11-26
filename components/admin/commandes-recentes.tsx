@@ -6,17 +6,31 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { EmptyState } from "@/components/admin/empty-state"
-import { LigneDeListe } from "@/components/admin/ligne-de-liste"
 import { OrderStatusBadge } from "@/components/storefront/order-status-badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { formatPrice } from "@/lib/money"
 import type { RecentOrder } from "@/lib/use-cases/admin-dashboard"
 import { cn, shortOrderId } from "@/lib/utils"
@@ -37,62 +51,90 @@ export function CommandesRecentes({
   className?: string
 }) {
   return (
-    <Card className={cn("flex h-full flex-col", className)}>
+    <Card
+      className={cn("flex h-full flex-col border border-border/60", className)}
+    >
       <CardHeader>
         <CardTitle>Commandes récentes</CardTitle>
         <CardDescription>Les dernières Commandes reçues.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col px-0">
         {commandes.length === 0 ? (
-          <EmptyState
-            icon={
-              <HugeiconsIcon
-                icon={ShoppingBasket02Icon}
-                strokeWidth={2}
-                className="size-5"
-              />
-            }
-            title="Aucune Commande récente."
-            description="Les nouvelles Commandes apparaîtront ici, avec leur statut et leur montant."
-            className="border-0 bg-transparent px-(--card-spacing) py-8"
-          />
-        ) : (
-          <>
-            <ul className="divide-y divide-hairline/60 border-t border-hairline/60">
-              {commandes.map((order) => (
-                <LigneDeListe
-                  key={order.id}
-                  href={`/admin/commandes/${order.id}`}
-                  titre={shortOrderId(order.id)}
-                  sousTitre={`${dateFormatter.format(order.createdAt)} — ${order.itemCount} article${order.itemCount > 1 ? "s" : ""}`}
-                  trailing={
-                    <span className="flex flex-col items-end gap-0.5">
-                      <span className="text-sm font-medium whitespace-nowrap tabular-nums">
-                        {formatPrice(order.totalPayable)}
-                      </span>
-                      <OrderStatusBadge status={order.status} />
-                    </span>
-                  }
-                />
-              ))}
-            </ul>
-            <div className="mt-auto flex items-center justify-end border-t border-hairline/60 px-(--card-spacing) py-3">
-              <Button
-                variant="outline"
-                size="sm"
-                render={<Link href="/admin/commandes" />}
-              >
-                {libelleDuPied(total)}
+          <Empty className="border-0 bg-transparent px-(--card-spacing) py-8">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
                 <HugeiconsIcon
-                  icon={ArrowRight01Icon}
+                  icon={ShoppingBasket02Icon}
                   strokeWidth={2}
-                  data-icon="inline-end"
+                  className="size-5"
                 />
-              </Button>
-            </div>
-          </>
+              </EmptyMedia>
+              <EmptyTitle className="text-sm font-medium">
+                Aucune Commande récente.
+              </EmptyTitle>
+              <EmptyDescription>
+                Les nouvelles Commandes apparaîtront ici, avec leur statut et
+                leur montant.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="border-hairline/60 hover:bg-transparent">
+                <TableHead className="ps-(--card-spacing)">Commande</TableHead>
+                <TableHead className="pe-(--card-spacing) text-end">
+                  Montant
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {commandes.map((order) => (
+                <TableRow
+                  key={order.id}
+                  className="relative border-hairline/60"
+                >
+                  <TableCell className="ps-(--card-spacing) whitespace-normal">
+                    <div className="flex flex-col gap-1">
+                      <Link
+                        href={`/admin/commandes/${order.id}`}
+                        className="font-medium underline-offset-4 after:absolute after:inset-0 after:content-[''] [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+                      >
+                        {shortOrderId(order.id)}
+                      </Link>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-xs text-muted-foreground">
+                          {`${dateFormatter.format(order.createdAt)} — ${order.itemCount} article${order.itemCount > 1 ? "s" : ""}`}
+                        </span>
+                        <OrderStatusBadge status={order.status} />
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="pe-(--card-spacing) text-end font-medium tabular-nums">
+                    {formatPrice(order.totalPayable)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
+      {commandes.length > 0 ? (
+        <CardFooter className="mbs-auto justify-end border-t border-hairline/60 py-3">
+          <Button
+            variant="outline"
+            size="sm"
+            render={<Link href="/admin/commandes" />}
+          >
+            {libelleDuPied(total)}
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              strokeWidth={2}
+              data-icon="inline-end"
+            />
+          </Button>
+        </CardFooter>
+      ) : null}
     </Card>
   )
 }

@@ -106,12 +106,12 @@ describe("la grammaire de carte de la bande du milieu", () => {
       <CommandesRecentes commandes={COMMANDES} total={3} />
     )
 
-    expect(html).toContain("divide-hairline/60")
-    expect(html).not.toContain('class="divide-y border-t"')
+    expect(html).toContain('data-slot="table"')
+    expect(html).toContain("border-hairline/60")
     expect(liensVers(html, "/admin/commandes")).toHaveLength(1)
     expect(html).toContain("Voir les 3 commandes")
     expect(
-      liensVers(html, `/admin/commandes/${COMMANDES[0]!.id}`)[0]!.balise
-    ).toContain("min-h-16")
+      liensVers(html, `/admin/commandes/${COMMANDES[0]!.id}`)
+    ).toHaveLength(1)
   })
 })

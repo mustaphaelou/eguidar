@@ -1,11 +1,15 @@
 import {
   ArrowDownRight01Icon,
   ArrowUpRight01Icon,
+  Clock01Icon,
+  PackageIcon,
+  ShoppingBasket02Icon,
   Wallet01Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { CarteStat, VALEUR_MONETAIRE } from "@/components/admin/carte-stat"
+import { Badge } from "@/components/ui/badge"
 import { buildCommandeListingUrl } from "@/lib/commande-listing"
 import { formatPrice } from "@/lib/money"
 import type { DashboardStats } from "@/lib/use-cases/admin-dashboard"
@@ -15,10 +19,12 @@ const percentFormatter = new Intl.NumberFormat("fr-FR", {
   maximumFractionDigits: 1,
 })
 
-function HintDuChiffreAffaires({ delta }: { delta: number | undefined }) {
+function BadgeDeVariation({ delta }: { delta: number | undefined }) {
   if (delta === undefined) {
     return (
-      <span className="flex items-center gap-1">Pas encore de comparaison</span>
+      <Badge variant="outline" className="text-muted-foreground">
+        Pas encore de comparaison
+      </Badge>
     )
   }
 
@@ -26,25 +32,25 @@ function HintDuChiffreAffaires({ delta }: { delta: number | undefined }) {
   const nul = delta === 0
 
   return (
-    <span
+    <Badge
+      variant={positif || nul ? "secondary" : "destructive"}
       className={cn(
-        "flex items-center gap-1 font-medium",
-        nul ? "text-muted-foreground" : undefined,
-        positif ? "text-emerald-700" : undefined,
-        !positif && !nul ? "text-destructive" : undefined
+        "tabular-nums",
+        positif && "bg-succes-fond text-succes",
+        nul && "text-muted-foreground"
       )}
     >
       {nul ? null : (
         <HugeiconsIcon
           icon={positif ? ArrowUpRight01Icon : ArrowDownRight01Icon}
           strokeWidth={2}
-          className="size-3.5"
+          data-icon="inline-start"
         />
       )}
       {nul
-        ? "Stable vs 30 jours précédents"
-        : `${percentFormatter.format(Math.abs(delta))} % vs 30 jours précédents`}
-    </span>
+        ? "0 %"
+        : `${positif ? "+" : "-"}${percentFormatter.format(Math.abs(delta))} %`}
+    </Badge>
   )
 }
 
@@ -54,59 +60,50 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
   return (
     <section
       aria-label="Indicateurs principaux"
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-4"
     >
       <CarteStat
         variant="hero"
         label="Chiffre d'affaires net"
         value={formatPrice(stats.chiffreAffairesNet30j)}
         valueClassName={VALEUR_MONETAIRE}
-        hint={
-          <span className="flex flex-col gap-0.5">
-            <span>Brut : {formatPrice(stats.chiffreAffairesBrut30j)}</span>
-            <HintDuChiffreAffaires delta={stats.variationChiffreAffairesNet} />
-          </span>
-        }
+        badge={<BadgeDeVariation delta={stats.variationChiffreAffairesNet} />}
+        hint={`Brut : ${formatPrice(stats.chiffreAffairesBrut30j)}`}
         legende="30 derniers jours"
         icon={Wallet01Icon}
       />
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 rounded-2xl bg-muted/40 px-4 py-3 ring-1 ring-foreground/10">
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            Commandes
-          </span>
-          <CarteStat
-            variant="chiffre"
-            label="Commandes"
-            value={stats.ordersLast30}
-            href="/admin/commandes"
-            action={`Commandes : ${stats.ordersLast30} — voir les commandes`}
-          />
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            En attente
-          </span>
-          <CarteStat
-            variant="chiffre"
-            label="En attente"
-            value={stats.pendingOrderCount}
-            href={enAttenteUrl}
-            action={`Commandes en attente : ${stats.pendingOrderCount} — voir les commandes en attente`}
-          />
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            Produits
-          </span>
-          <CarteStat
-            variant="chiffre"
-            label="Produits"
-            value={stats.productCount}
-            href="/admin/produits"
-            action={`Produits : ${stats.productCount} — voir les produits`}
-          />
-        </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <CarteStat
+          label="Commandes"
+          value={stats.ordersLast30}
+          hint="Reçues sur les 30 derniers jours"
+          icon={ShoppingBasket02Icon}
+          href="/admin/commandes"
+          action={`Commandes : ${stats.ordersLast30} — voir les commandes`}
+        />
+
+        <CarteStat
+          label="En attente"
+          value={stats.pendingOrderCount}
+          hint="Commandes à traiter"
+          icon={Clock01Icon}
+          href={enAttenteUrl}
+          action={`Commandes en attente : ${stats.pendingOrderCount} — voir les commandes en attente`}
+        />
+
+        <CarteStat
+          label="Produits"
+          value={stats.productCount}
+          hint={
+            stats.outOfStockCount > 0
+              ? `${stats.outOfStockCount} en rupture de stock`
+              : "Catalogue actif"
+          }
+          icon={PackageIcon}
+          href="/admin/produits"
+          action={`Produits : ${stats.productCount} — voir les produits`}
+        />
       </div>
     </section>
   )
