@@ -9,6 +9,7 @@ import {
 
 const SURFACES = [
   "components/storefront/global-nav-bar.tsx",
+  "components/storefront/panneau-navigation.tsx",
   "components/storefront/apercu-du-panier-surface.tsx",
   "components/storefront/footer.tsx",
   "components/storefront/apple-breadcrumb.tsx",

@@ -20,6 +20,7 @@ import {
 import {
   fetchCategoryPageData,
   fetchHomeData,
+  fetchNavCategories,
   fetchProductPageData,
 } from "@/lib/use-cases/storefront"
 import {
@@ -918,5 +919,48 @@ describe("storefront browse", () => {
         warn.mockRestore()
       }
     })
+  })
+
+  it("nav categories: renvoie les sous-catégories et les marques agrégées sur toute la branche", async () => {
+    await createProduct(cSlug("root"), {
+      name: "Produit racine A",
+      slug: pSlug("nav-a"),
+      brand: "Apple",
+      price: 100000,
+      images: [],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-na`, priceDelta: 0, stock: 2 },
+      ],
+    })
+    await createProduct(cSlug("child"), {
+      name: "Produit enfant B",
+      slug: pSlug("nav-b"),
+      brand: "Samsung",
+      price: 100000,
+      images: [],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-nb`, priceDelta: 0, stock: 2 },
+      ],
+    })
+    await createProduct(cSlug("grand"), {
+      name: "Produit petit-fils C",
+      slug: pSlug("nav-c"),
+      brand: "Samsung",
+      price: 100000,
+      images: [],
+      variants: [
+        { name: "Standard", sku: `SKU-${runId}-nc`, priceDelta: 0, stock: 2 },
+      ],
+    })
+
+    const nav = await fetchNavCategories()
+    const racine = nav.find((categorie) => categorie.slug === cSlug("root"))!
+    const autre = nav.find((categorie) => categorie.slug === cSlug("other"))!
+
+    expect(racine.children).toEqual([{ name: "Enfant", slug: cSlug("child") }])
+    expect(racine.brands).toEqual(["Samsung", "Apple"])
+    expect(racine.productCount).toBe(3)
+    expect(autre.children).toEqual([])
+    expect(autre.brands).toEqual([])
   })
 })

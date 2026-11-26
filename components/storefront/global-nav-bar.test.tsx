@@ -631,3 +631,179 @@ describe("GlobalNavBar sans navigation de pages", () => {
     }
   )
 })
+
+describe("GlobalNavBar — rideaux de navigation et recherche Apple", () => {
+  const categories = [
+    {
+      name: "Smartphones",
+      slug: "smartphones",
+      children: [{ name: "iPhone", slug: "iphone" }],
+      brands: ["Apple", "Samsung"],
+    },
+    {
+      name: "Accessoires",
+      slug: "accessoires",
+      children: [],
+      brands: ["Anker"],
+    },
+  ]
+
+  function panneauNavigation() {
+    return container.querySelector<HTMLElement>(
+      "[data-slot='panneau-navigation']"
+    )
+  }
+
+  function voileNavigation() {
+    return container.querySelector<HTMLElement>(
+      "[data-slot='voile-navigation']"
+    )
+  }
+
+  it("ouvre le panneau de catégorie au survol fin, bascule sans délai et ferme au départ sur le voile", () => {
+    vi.useFakeTimers()
+    try {
+      const errors = renderCapturingErrors(
+        <GlobalNavBar categories={categories} />
+      )
+
+      const lienSmartphones = container.querySelector<HTMLAnchorElement>(
+        "nav[aria-label='Catégories'] a[href='/categorie/smartphones']"
+      )!
+      const lienAccessoires = container.querySelector<HTMLAnchorElement>(
+        "nav[aria-label='Catégories'] a[href='/categorie/accessoires']"
+      )!
+
+      act(() => {
+        lienSmartphones.dispatchEvent(
+          new PointerEvent("pointerover", {
+            bubbles: true,
+            pointerType: "touch",
+          })
+        )
+        vi.advanceTimersByTime(100)
+      })
+      expect(panneauNavigation()).toBeNull()
+
+      act(() => {
+        lienSmartphones.dispatchEvent(
+          new PointerEvent("pointerover", {
+            bubbles: true,
+            pointerType: "mouse",
+          })
+        )
+      })
+      expect(panneauNavigation()).toBeNull()
+
+      act(() => {
+        vi.advanceTimersByTime(80)
+      })
+
+      const panneau = panneauNavigation()!
+      expect(panneau.getAttribute("aria-label")).toBe("Smartphones")
+      expect(panneau.textContent).toContain("Explorer Smartphones")
+      expect(panneau.textContent).toContain("iPhone")
+      expect(panneau.textContent).toContain("Par marque")
+      expect(panneau.textContent).toContain("Apple")
+      expect(voileNavigation()).not.toBeNull()
+      expect(bandeau().classList.contains("z-50")).toBe(true)
+
+      act(() => {
+        lienAccessoires.dispatchEvent(
+          new PointerEvent("pointerover", {
+            bubbles: true,
+            pointerType: "mouse",
+          })
+        )
+      })
+      expect(panneauNavigation()!.getAttribute("aria-label")).toBe(
+        "Accessoires"
+      )
+      expect(panneauNavigation()!.textContent).toContain("Anker")
+
+      act(() => {
+        voileNavigation()!.dispatchEvent(
+          new PointerEvent("pointerover", {
+            bubbles: true,
+            pointerType: "mouse",
+          })
+        )
+        vi.advanceTimersByTime(140)
+      })
+      expect(panneauNavigation()).toBeNull()
+      expect(voileNavigation()).toBeNull()
+      expect(errors).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("ouvre le panneau au clavier avec Flèche bas et rend le focus sur Escape", () => {
+    renderCapturingErrors(<GlobalNavBar categories={categories} />)
+
+    const lienSmartphones = container.querySelector<HTMLAnchorElement>(
+      "nav[aria-label='Catégories'] a[href='/categorie/smartphones']"
+    )!
+    lienSmartphones.focus()
+
+    act(() => {
+      lienSmartphones.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })
+      )
+    })
+
+    const panneau = panneauNavigation()!
+    expect(panneau).not.toBeNull()
+    expect(panneau.contains(document.activeElement)).toBe(true)
+
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    })
+
+    expect(panneauNavigation()).toBeNull()
+    expect(document.activeElement).toBe(lienSmartphones)
+  })
+
+  it("affiche les Liens rapides et le voile flouté dans le rideau de Recherche", () => {
+    renderCapturingErrors(<GlobalNavBar categories={categories} />)
+
+    const recherche = boutonRecherche()
+    act(() => recherche.click())
+
+    expect(voileNavigation()).not.toBeNull()
+    expect(container.textContent).toContain("Liens rapides")
+    expect(container.textContent).toContain("Tout le catalogue")
+
+    act(() => voileNavigation()!.click())
+
+    expect(container.querySelector("input[name='q']")).toBeNull()
+    expect(voileNavigation()).toBeNull()
+    expect(document.activeElement).toBe(recherche)
+  })
+
+  it("déplie les sous-catégories et marques dans le menu mobile", () => {
+    renderCapturingErrors(<GlobalNavBar categories={categories} />)
+
+    const menu = container.querySelector<HTMLButtonElement>(
+      "button[aria-label='Ouvrir les catégories']"
+    )!
+    act(() => menu.click())
+
+    const deplier = container.querySelector<HTMLButtonElement>(
+      "button[aria-label='Déplier Smartphones']"
+    )!
+    expect(deplier.getAttribute("aria-expanded")).toBe("false")
+
+    act(() => deplier.click())
+
+    expect(deplier.getAttribute("aria-expanded")).toBe("true")
+    expect(container.querySelector("#menu-categories")?.textContent).toContain(
+      "iPhone"
+    )
+    expect(container.querySelector("#menu-categories")?.textContent).toContain(
+      "Samsung"
+    )
+  })
+})
