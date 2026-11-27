@@ -17,6 +17,7 @@ import { verifierFrontiereBestEffort } from "@/test/mutation-squelette-recette"
 import {
   ImageProduitIntrouvableError,
   ImageProduitSuppressionImpossibleError,
+  compterImagesSansAlt,
   enregistrerImagesProduit,
   lireGalerieProduit,
   listerImagesPourGalerie,
@@ -231,6 +232,7 @@ describe("Bibliothèque des médias — lecture, filtres et comptes", () => {
     expect(page.totalCount).toBe(3)
     expect(page.inutiliseesCount).toBe(1)
     expect(page.sansAltCount).toBe(1)
+    await expect(compterImagesSansAlt()).resolves.toBe(1)
     const parUrl = new Map(page.images.map((image) => [image.publicUrl, image]))
     expect(parUrl.get(URL_A)).toMatchObject({
       usageCount: 1,

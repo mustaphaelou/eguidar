@@ -22,7 +22,7 @@ vi.mock("next/link", () => ({
 const { etat, statsVides } = vi.hoisted(() => {
   const statsVides = () => ({
     productCount: 0,
-    outOfStockCount: 0,
+    surveillance: { enRupture: 0, sansAlt: 0, echecs: 0 },
     orderCount: 0,
     pendingOrderCount: 0,
     chiffreAffairesBrut30j: 0,
@@ -39,19 +39,6 @@ const { etat, statsVides } = vi.hoisted(() => {
 
 vi.mock("@/lib/use-cases/admin-dashboard", () => ({
   getDashboardStats: async () => etat.stats,
-}))
-
-vi.mock("@/lib/use-cases/images-produit", () => ({
-  listerImagesProduit: async () => ({
-    images: [],
-    totalCount: 0,
-    inutiliseesCount: 0,
-    sansAltCount: 0,
-  }),
-}))
-
-vi.mock("@/lib/automations/historique", () => ({
-  compterExecutionsEnEchec: async () => 0,
 }))
 
 vi.mock("@/components/admin/graphique-chiffre-affaires", () => ({

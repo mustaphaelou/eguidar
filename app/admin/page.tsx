@@ -14,10 +14,8 @@ import { PremierePage } from "@/components/admin/premiere-page"
 import { TableauDeBordChargement } from "@/components/admin/tableau-de-bord-chargement"
 import { PageHeader } from "@/components/layout/admin/page-header"
 import { Button } from "@/components/ui/button"
-import { compterExecutionsEnEchec } from "@/lib/automations/historique"
 import { parsePeriode } from "@/lib/tableau-de-bord-periode"
 import { getDashboardStats } from "@/lib/use-cases/admin-dashboard"
-import { listerImagesProduit } from "@/lib/use-cases/images-produit"
 
 export const metadata: Metadata = {
   title: "Tableau de bord",
@@ -44,11 +42,7 @@ async function TableauDeBord({
 }) {
   await exigerAdmin()
   const periode = parsePeriode(await searchParams)
-  const [stats, imagesSansAlt, executionsEnEchec] = await Promise.all([
-    getDashboardStats(periode),
-    listerImagesProduit({ sansAlt: true }),
-    compterExecutionsEnEchec(),
-  ])
+  const stats = await getDashboardStats(periode)
 
   if (stats.productCount === 0 && stats.orderCount === 0) {
     return <PremierePage />
@@ -87,11 +81,7 @@ async function TableauDeBord({
       </div>
 
       <CarteSurveillance
-        compteurs={{
-          enRupture: stats.outOfStockCount,
-          sansAlt: imagesSansAlt.sansAltCount,
-          echecs: executionsEnEchec,
-        }}
+        compteurs={stats.surveillance}
         stock={stats.lowStockVariants}
       />
     </div>
