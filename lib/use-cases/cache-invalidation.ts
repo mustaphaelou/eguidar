@@ -15,6 +15,7 @@ export const PRODUCT_TAG = "products"
 export const HOME_TAG = "home"
 export const CATEGORY_TAG = "categories"
 export const BLOG_TAG = "blog"
+export const ANNONCE_TAG = "annonce"
 
 export const productDetailTag = (slug: string) =>
   `${PREFIXE_DETAIL_PRODUIT}${slug}`

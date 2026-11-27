@@ -21,6 +21,7 @@ const TEST_TABLES = [
   "ReturnLine",
   "DeliveryCity",
   "ShippingSettings",
+  "Annonce",
   "Theme",
   "ArticleBlog",
   "ArticleBlogProduit",

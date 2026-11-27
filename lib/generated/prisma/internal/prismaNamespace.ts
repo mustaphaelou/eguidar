@@ -446,6 +446,7 @@ export const ModelName = {
   Refund: "Refund",
   DeliveryCity: "DeliveryCity",
   ShippingSettings: "ShippingSettings",
+  Annonce: "Annonce",
   Theme: "Theme",
   ArticleBlog: "ArticleBlog",
   ArticleBlogProduit: "ArticleBlogProduit",
@@ -496,6 +497,7 @@ export type TypeMap<
       | "refund"
       | "deliveryCity"
       | "shippingSettings"
+      | "annonce"
       | "theme"
       | "articleBlog"
       | "articleBlogProduit"
@@ -1952,6 +1954,82 @@ export type TypeMap<
         }
       }
     }
+    Annonce: {
+      payload: Prisma.$AnnoncePayload<ExtArgs>
+      fields: Prisma.AnnonceFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AnnonceFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AnnonceFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload>
+        }
+        findFirst: {
+          args: Prisma.AnnonceFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AnnonceFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload>
+        }
+        findMany: {
+          args: Prisma.AnnonceFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload>[]
+        }
+        create: {
+          args: Prisma.AnnonceCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload>
+        }
+        createMany: {
+          args: Prisma.AnnonceCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AnnonceCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload>[]
+        }
+        delete: {
+          args: Prisma.AnnonceDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload>
+        }
+        update: {
+          args: Prisma.AnnonceUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload>
+        }
+        deleteMany: {
+          args: Prisma.AnnonceDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AnnonceUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AnnonceUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload>[]
+        }
+        upsert: {
+          args: Prisma.AnnonceUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AnnoncePayload>
+        }
+        aggregate: {
+          args: Prisma.AnnonceAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAnnonce>
+        }
+        groupBy: {
+          args: Prisma.AnnonceGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AnnonceGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AnnonceCountArgs<ExtArgs>
+          result:
+            | runtime.Types.Utils.Optional<Prisma.AnnonceCountAggregateOutputType>
+            | number
+        }
+      }
+    }
     Theme: {
       payload: Prisma.$ThemePayload<ExtArgs>
       fields: Prisma.ThemeFieldRefs
@@ -2954,6 +3032,18 @@ export const ShippingSettingsScalarFieldEnum = {
 export type ShippingSettingsScalarFieldEnum =
   (typeof ShippingSettingsScalarFieldEnum)[keyof typeof ShippingSettingsScalarFieldEnum]
 
+export const AnnonceScalarFieldEnum = {
+  id: "id",
+  actif: "actif",
+  message: "message",
+  lienUrl: "lienUrl",
+  lienLibelle: "lienLibelle",
+  updatedAt: "updatedAt",
+} as const
+
+export type AnnonceScalarFieldEnum =
+  (typeof AnnonceScalarFieldEnum)[keyof typeof AnnonceScalarFieldEnum]
+
 export const ThemeScalarFieldEnum = {
   id: "id",
   slug: "slug",
@@ -3582,6 +3672,7 @@ export type GlobalOmitConfig = {
   refund?: Prisma.RefundOmit
   deliveryCity?: Prisma.DeliveryCityOmit
   shippingSettings?: Prisma.ShippingSettingsOmit
+  annonce?: Prisma.AnnonceOmit
   theme?: Prisma.ThemeOmit
   articleBlog?: Prisma.ArticleBlogOmit
   articleBlogProduit?: Prisma.ArticleBlogProduitOmit

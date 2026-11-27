@@ -372,6 +372,15 @@ model ShippingSettings {
   updatedAt             DateTime @updatedAt @db.Timestamptz(3)
 }
 
+model Annonce {
+  id          String   @id @default("default")
+  actif       Boolean  @default(false)
+  message     String   @default("")
+  lienUrl     String?
+  lienLibelle String?
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+}
+
 // --- Blog ---
 
 enum StatutPublication {
