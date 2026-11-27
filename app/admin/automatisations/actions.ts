@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation"
 
-import { dependancesAutomations } from "@/lib/automations/dependances"
 import {
   construireUrlExecutions,
   parseFiltresExecutions,
@@ -103,10 +102,7 @@ export const reessayerExecutionAction = adminFormAction<ReessaiFormulaire>({
     }),
   }),
   run: async (entree) => {
-    await reessayerExecution(
-      entree.executionId,
-      dependancesAutomations(new Date())
-    )
+    await reessayerExecution(entree.executionId)
     redirect(`${HISTORIQUE}${construireUrlExecutions(entree.filtres)}`)
   },
 })

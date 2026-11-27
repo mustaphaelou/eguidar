@@ -12,7 +12,10 @@ import {
   type DecisionAutomation,
   type RaisonIgnoree,
 } from "@/lib/automations/decision"
-import { type DependancesAutomations } from "@/lib/automations/actions"
+import {
+  dependancesAutomations,
+  type DependancesAutomations,
+} from "@/lib/automations/dependances"
 import { executerActionOuRedeclaration } from "@/lib/automations/execution-durable"
 import {
   ecrireRevisionRegle,
@@ -450,7 +453,7 @@ function motifDuReessaiRefuse(raison: RaisonIgnoree): string {
 
 export async function reessayerExecution(
   executionId: string,
-  dependances: DependancesAutomations
+  dependances: DependancesAutomations = dependancesAutomations(new Date())
 ): Promise<ResultatReessai> {
   const execution = await prisma.automationRun.findUnique({
     where: { id: executionId },

@@ -1,36 +1,22 @@
 import { randomUUID } from "node:crypto"
 
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
-
-const { supprimerImagePersisteeMock, supprimerImageCategorieMock } = vi.hoisted(
-  () => ({
-    supprimerImagePersisteeMock: vi.fn(),
-    supprimerImageCategorieMock: vi.fn(),
-  })
-)
-
-vi.mock("@/lib/images-produit/r2", async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import("@/lib/images-produit/r2")>()
-  return {
-    ...original,
-    stockageImageProduitR2: {
-      ...original.stockageImageProduitR2,
-      supprimerImagePersistee: supprimerImagePersisteeMock,
-      supprimerImageCategorie: supprimerImageCategorieMock,
-    },
-  }
-})
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
 import { enregistrerEvenement } from "@/lib/automations/evenements"
 import { executerLesEvenements } from "@/lib/automations/executeur"
 import { semerLesRegles } from "@/lib/automations/regles"
 import { prisma } from "@/lib/db"
-import { dependancesDeTest } from "@/test/automations-memoire"
+import {
+  creerPortImagesMemoire,
+  dependancesDeTest,
+  type PortImagesMemoire,
+} from "@/test/automations-memoire"
 
 const runId = randomUUID().slice(0, 8)
 const MAINTENANT = new Date("2026-10-28T07:00:00.000Z")
 const REGLE = "suppression-images-produit-enregistre"
+
+let images: PortImagesMemoire
 
 function options(maintenant = MAINTENANT, delaiDeReprise = () => 0) {
   return { maintenant, delaiDeReprise }
@@ -124,10 +110,7 @@ beforeEach(async () => {
   await prisma.automationRun.deleteMany()
   await prisma.automationEvent.deleteMany()
   await semerLesRegles()
-  supprimerImagePersisteeMock.mockReset()
-  supprimerImagePersisteeMock.mockResolvedValue({ ok: true, valeur: null })
-  supprimerImageCategorieMock.mockReset()
-  supprimerImageCategorieMock.mockResolvedValue({ ok: true, valeur: null })
+  images = creerPortImagesMemoire()
 })
 
 afterAll(async () => {
@@ -144,11 +127,12 @@ describe("l'action suppression.images", () => {
     const urls = urlsRetirees()
     await ecrireEvenement(produitId, urls)
 
-    await executerLesEvenements(options(), dependancesDeTest(MAINTENANT))
-
-    expect(supprimerImagePersisteeMock.mock.calls.map(([url]) => url)).toEqual(
-      urls
+    await executerLesEvenements(
+      options(),
+      dependancesDeTest(MAINTENANT, { images: images.port })
     )
+
+    expect(images.produit).toEqual(urls)
     const execution = await prisma.automationRun.findFirstOrThrow({
       where: { ruleId: REGLE },
       orderBy: { attempt: "desc" },
@@ -160,14 +144,12 @@ describe("l'action suppression.images", () => {
     const produitId = randomUUID()
     const urls = urlsRetirees()
     await ecrireEvenement(produitId, urls)
-    supprimerImagePersisteeMock.mockRejectedValueOnce(
-      new Error("R2 indisponible")
-    )
+    images.echouerProchainProduit(new Error("R2 indisponible"))
 
     const delai = 60_000
     const premier = await executerLesEvenements(
       options(MAINTENANT, () => delai),
-      dependancesDeTest(MAINTENANT)
+      dependancesDeTest(MAINTENANT, { images: images.port })
     )
 
     expect(premier.echoues).toBe(1)
@@ -187,7 +169,7 @@ describe("l'action suppression.images", () => {
     const plusTard = new Date(MAINTENANT.getTime() + delai + 1)
     const second = await executerLesEvenements(
       options(plusTard, () => 0),
-      dependancesDeTest(plusTard)
+      dependancesDeTest(plusTard, { images: images.port })
     )
 
     expect(second.echoues).toBe(0)
@@ -199,10 +181,7 @@ describe("l'action suppression.images", () => {
       "echoue",
       "reussi",
     ])
-    const tentees = new Set(
-      supprimerImagePersisteeMock.mock.calls.map(([url]) => url)
-    )
-    expect([...tentees]).toEqual(urls)
+    expect([...new Set(images.produit)]).toEqual(urls)
     const relu = await prisma.automationEvent.findUniqueOrThrow({
       where: { id: evenement.id },
     })
@@ -214,14 +193,12 @@ describe("l'action suppression.images", () => {
     const produitId = randomUUID()
     const urls = urlsRetirees()
     await ecrireEvenementDeSuppression(produitId, urls)
-    supprimerImagePersisteeMock.mockRejectedValueOnce(
-      new Error("R2 indisponible")
-    )
+    images.echouerProchainProduit(new Error("R2 indisponible"))
 
     const delai = 60_000
     const premier = await executerLesEvenements(
       options(MAINTENANT, () => delai),
-      dependancesDeTest(MAINTENANT)
+      dependancesDeTest(MAINTENANT, { images: images.port })
     )
 
     expect(premier.echoues).toBeGreaterThan(0)
@@ -234,7 +211,7 @@ describe("l'action suppression.images", () => {
     const plusTard = new Date(MAINTENANT.getTime() + delai + 1)
     await executerLesEvenements(
       options(plusTard, () => 0),
-      dependancesDeTest(plusTard)
+      dependancesDeTest(plusTard, { images: images.port })
     )
 
     const executions = await prisma.automationRun.findMany({
@@ -245,9 +222,7 @@ describe("l'action suppression.images", () => {
       "echoue",
       "reussi",
     ])
-    expect(
-      new Set(supprimerImagePersisteeMock.mock.calls.map(([url]) => url))
-    ).toEqual(new Set(urls))
+    expect(new Set(images.produit)).toEqual(new Set(urls))
   })
 })
 
@@ -259,12 +234,13 @@ describe("l'action suppression.images sur une Structure supprimée", () => {
     const image = `https://cdn.example.test/categories/${runId}-${categorieId}.jpg`
     await ecrireEvenementStructureSupprimee(categorieId, image)
 
-    await executerLesEvenements(options(), dependancesDeTest(MAINTENANT))
+    await executerLesEvenements(
+      options(),
+      dependancesDeTest(MAINTENANT, { images: images.port })
+    )
 
-    expect(supprimerImageCategorieMock.mock.calls.map(([url]) => url)).toEqual([
-      image,
-    ])
-    expect(supprimerImagePersisteeMock).not.toHaveBeenCalled()
+    expect(images.structure).toEqual([image])
+    expect(images.produit).toEqual([])
     const execution = await prisma.automationRun.findFirstOrThrow({
       where: { ruleId: REGLE_STRUCTURE_SUPPRIMEE },
       orderBy: { attempt: "desc" },
@@ -276,14 +252,12 @@ describe("l'action suppression.images sur une Structure supprimée", () => {
     const categorieId = randomUUID()
     const image = `https://cdn.example.test/categories/${runId}-${categorieId}.png`
     await ecrireEvenementStructureSupprimee(categorieId, image)
-    supprimerImageCategorieMock.mockRejectedValueOnce(
-      new Error("R2 indisponible")
-    )
+    images.echouerProchaineStructure(new Error("R2 indisponible"))
 
     const delai = 60_000
     const premier = await executerLesEvenements(
       options(MAINTENANT, () => delai),
-      dependancesDeTest(MAINTENANT)
+      dependancesDeTest(MAINTENANT, { images: images.port })
     )
 
     expect(premier.echoues).toBe(1)
@@ -303,7 +277,7 @@ describe("l'action suppression.images sur une Structure supprimée", () => {
     const plusTard = new Date(MAINTENANT.getTime() + delai + 1)
     const second = await executerLesEvenements(
       options(plusTard, () => 0),
-      dependancesDeTest(plusTard)
+      dependancesDeTest(plusTard, { images: images.port })
     )
 
     expect(second.echoues).toBe(0)
@@ -315,9 +289,7 @@ describe("l'action suppression.images sur une Structure supprimée", () => {
       "echoue",
       "reussi",
     ])
-    expect(
-      new Set(supprimerImageCategorieMock.mock.calls.map(([url]) => url))
-    ).toEqual(new Set([image]))
+    expect(new Set(images.structure)).toEqual(new Set([image]))
   })
 })
 
@@ -329,12 +301,13 @@ describe("l'action suppression.images sur une Structure modifiée", () => {
     const image = `https://cdn.example.test/categories/${runId}-ancienne.jpg`
     await ecrireEvenementStructureModifiee(categorieId, image)
 
-    await executerLesEvenements(options(), dependancesDeTest(MAINTENANT))
+    await executerLesEvenements(
+      options(),
+      dependancesDeTest(MAINTENANT, { images: images.port })
+    )
 
-    expect(supprimerImageCategorieMock.mock.calls.map(([url]) => url)).toEqual([
-      image,
-    ])
-    expect(supprimerImagePersisteeMock).not.toHaveBeenCalled()
+    expect(images.structure).toEqual([image])
+    expect(images.produit).toEqual([])
     const execution = await prisma.automationRun.findFirstOrThrow({
       where: { ruleId: REGLE_STRUCTURE_MODIFIEE, attempt: 1 },
     })
@@ -345,14 +318,12 @@ describe("l'action suppression.images sur une Structure modifiée", () => {
     const categorieId = randomUUID()
     const image = `https://cdn.example.test/categories/${runId}-panne.jpg`
     await ecrireEvenementStructureModifiee(categorieId, image)
-    supprimerImageCategorieMock.mockRejectedValueOnce(
-      new Error("R2 indisponible")
-    )
+    images.echouerProchaineStructure(new Error("R2 indisponible"))
 
     const delai = 60_000
     const premier = await executerLesEvenements(
       options(MAINTENANT, () => delai),
-      dependancesDeTest(MAINTENANT)
+      dependancesDeTest(MAINTENANT, { images: images.port })
     )
 
     expect(premier.echoues).toBe(1)
@@ -367,7 +338,7 @@ describe("l'action suppression.images sur une Structure modifiée", () => {
     const plusTard = new Date(MAINTENANT.getTime() + delai + 1)
     await executerLesEvenements(
       options(plusTard, () => 0),
-      dependancesDeTest(plusTard)
+      dependancesDeTest(plusTard, { images: images.port })
     )
 
     const executions = await prisma.automationRun.findMany({
@@ -378,8 +349,6 @@ describe("l'action suppression.images sur une Structure modifiée", () => {
       "echoue",
       "reussi",
     ])
-    expect(
-      new Set(supprimerImageCategorieMock.mock.calls.map(([url]) => url))
-    ).toEqual(new Set([image]))
+    expect(new Set(images.structure)).toEqual(new Set([image]))
   })
 })

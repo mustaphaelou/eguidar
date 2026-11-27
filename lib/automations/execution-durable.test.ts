@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { ACTIONS_PLANIFIEES } from "@/lib/automations/actions"
-import type { DependancesAutomations } from "@/lib/automations/actions"
+import type { DependancesAutomations } from "@/lib/automations/dependances"
 import type { ActionAutomation } from "@/lib/automations/regles"
 import { executerActionOuRedeclaration } from "@/lib/automations/execution-durable"
 import {
