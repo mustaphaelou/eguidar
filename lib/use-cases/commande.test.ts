@@ -16,6 +16,7 @@ import { toIndexableProduct } from "@/lib/index-projection"
 import type { DocumentCatalogue } from "@/lib/use-cases/apres-ecriture/catalogue"
 import {
   écrireLeStock,
+  exécuterEffetsCommande,
   exécuterStock,
   fixer,
   OutOfStockError,
@@ -484,5 +485,85 @@ describe("exécuterStock", () => {
     expect(lectureCategories).not.toHaveBeenCalled()
     lectureProduits.mockRestore()
     lectureCategories.mockRestore()
+  })
+})
+
+describe("exécuterEffetsCommande", () => {
+  const snapshot = {
+    userEmail: "client@test.ma",
+    orderId: "cmd-1",
+    items: [
+      {
+        productName: "Produit A",
+        variantName: "Standard",
+        price: 1000,
+        quantity: 1,
+      },
+    ],
+    total: 1000,
+    shippingFee: 0,
+    totalPayable: 1000,
+    cityName: "Casablanca",
+    address: "1 Rue de Test",
+    phone: "+212 600 000 000",
+  }
+
+  it("exécute le stock puis l'e-mail quand un plan de Commande est présent", async () => {
+    const ordre: string[] = []
+    const journal = creerJournalEffetsMemoire()
+    const plan = declarerApresEcriture("commande.statut.changee", {
+      commandeId: "cmd-1",
+      snapshot,
+      statut: "confirmed",
+    })
+
+    await exécuterEffetsCommande(
+      { plan, ecriture: ecriturePour(["a-produit"]) },
+      {
+        stock: {
+          async reindexProducts() {
+            ordre.push("stock:reindex")
+          },
+          async revalidateCatalog() {
+            ordre.push("stock:cache")
+          },
+          async purgeCatalogue() {
+            ordre.push("stock:purge")
+          },
+        },
+        email: {
+          async sendOrderStatusEmail(_order, statut) {
+            ordre.push(`email:${statut}`)
+          },
+        },
+      },
+      journal
+    )
+
+    expect(ordre).toEqual([
+      "stock:reindex",
+      "stock:cache",
+      "stock:purge",
+      "email:confirmed",
+    ])
+    expect(journal.mesures).toHaveLength(4)
+  })
+
+  it("n'exécute aucun e-mail quand le plan est null", async () => {
+    const { appels, effets } = portsEnregistreurs()
+    const sendOrderPlacedEmail = vi.fn(async () => {})
+    const sendOrderStatusEmail = vi.fn(async () => {})
+
+    await exécuterEffetsCommande(
+      { plan: null, ecriture: ecriturePour(["a-produit"]) },
+      {
+        stock: effets,
+        email: { sendOrderPlacedEmail, sendOrderStatusEmail },
+      }
+    )
+
+    expect(appels).toHaveLength(3)
+    expect(sendOrderPlacedEmail).not.toHaveBeenCalled()
+    expect(sendOrderStatusEmail).not.toHaveBeenCalled()
   })
 })

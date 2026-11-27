@@ -3,14 +3,12 @@ import { z } from "zod"
 import { Prisma } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import {
-  DUREE_VIE_EVENEMENT_MS,
   typeEntiteAutomationSchema,
   typeEvenementAutomationSchema,
 } from "@/lib/automations/evenements"
 import {
   deciderAutomation,
   type DecisionAutomation,
-  type RaisonIgnoree,
 } from "@/lib/automations/decision"
 import {
   dependancesAutomations,
@@ -27,6 +25,7 @@ import {
   annulerExecutionsEnCours,
   ouvrirReessai,
   terminerExecution,
+  type RefusReessai,
 } from "@/lib/automations/executions"
 import {
   LIBELLES_ACTION,
@@ -436,18 +435,38 @@ export interface ResultatReessai {
   erreur: string | null
 }
 
-const FENETRE_REJEU_EN_HEURES = DUREE_VIE_EVENEMENT_MS / (60 * 60 * 1000)
-
-function motifDuReessaiRefuse(raison: RaisonIgnoree): string {
+function lancerRefusReessai(raison: RefusReessai): never {
   switch (raison.type) {
+    case "introuvable":
+      throw new ExecutionIntrouvableError()
+    case "pas-en-echec":
+      throw new ReessaiRefuseError(
+        "Seule une Exécution en échec peut être réessayée"
+      )
+    case "evenement-disparu":
+      throw new ReessaiRefuseError(
+        "L'Événement de cette Exécution n'existe plus : rien à rejouer"
+      )
+    case "regle-disparue":
+      throw new ReessaiRefuseError(
+        "La Règle de cette Exécution n'existe plus : rien à rejouer"
+      )
     case "evenement-expire":
-      return `L'Événement a expiré le ${raison.expireLe.toISOString()} : la fenêtre de rejeu de ${FENETRE_REJEU_EN_HEURES} h est dépassée, rien n'est rejoué.`
+      throw new ReessaiRefuseError(
+        `L'Événement a expiré le ${raison.expireLe.toISOString()} : sa fenêtre de rejeu est passée, un réessai pourrait produire un doublon.`
+      )
     case "regle-desactivee":
-      return "La Règle est désactivée : réactivez-la pour réessayer cette Exécution."
+      throw new ReessaiRefuseError(
+        "La Règle est désactivée : réactivez-la pour réessayer cette Exécution."
+      )
     case "declencheur-different":
-      return `La Règle ne possède plus cet Événement : elle attend « ${libelleBrutDuDeclencheur(raison.attendu)} » (${raison.attendu}) et l'Événement porte « ${libelleBrutDuDeclencheur(raison.recu)} » (${raison.recu}).`
+      throw new ReessaiRefuseError(
+        `La Règle ne possède plus cet Événement : elle attend « ${libelleBrutDuDeclencheur(raison.attendu)} » (${raison.attendu}) et l'Événement porte « ${libelleBrutDuDeclencheur(raison.recu)} » (${raison.recu}).`
+      )
     case "condition-non-remplie":
-      return "La condition de la Règle ne retient plus cet Événement : la modification de la Règle est honorée, rien n'est rejoué."
+      throw new ReessaiRefuseError(
+        "La condition de la Règle ne retient plus cet Événement : la modification de la Règle est honorée, rien n'est rejoué."
+      )
   }
 }
 
@@ -455,75 +474,10 @@ export async function reessayerExecution(
   executionId: string,
   dependances: DependancesAutomations = dependancesAutomations(new Date())
 ): Promise<ResultatReessai> {
-  const execution = await prisma.automationRun.findUnique({
-    where: { id: executionId },
-    include: { event: true, rule: true },
-  })
-  if (!execution) throw new ExecutionIntrouvableError()
-  if (execution.status !== "echoue") {
-    throw new ReessaiRefuseError(
-      "Seule une Exécution en échec peut être réessayée"
-    )
-  }
-  if (!execution.event) {
-    throw new ReessaiRefuseError(
-      "L'Événement de cette Exécution n'existe plus : rien à rejouer"
-    )
-  }
-  if (!execution.rule) {
-    throw new ReessaiRefuseError(
-      "La Règle de cette Exécution n'existe plus : rien à rejouer"
-    )
-  }
-
-  const regle = versRegle(execution.rule)
-  const evenement = execution.event
   const maintenant = dependances.maintenant
-
-  const decision = deciderAutomation(
-    {
-      trigger: regle.declencheur,
-      enabled: regle.actif,
-      condition: regle.condition,
-    },
-    {
-      type: evenement.type,
-      payload: evenement.payload,
-      expiresAt: evenement.expiresAt,
-    },
-    maintenant
-  )
-  if (decision.decision === "ignorer") {
-    if (decision.raison.type === "evenement-expire") {
-      throw new ReessaiRefuseError(
-        `L'Événement a expiré le ${evenement.expiresAt.toISOString()} : sa fenêtre de rejeu est passée, un réessai pourrait produire un doublon.`
-      )
-    }
-    throw new ReessaiRefuseError(motifDuReessaiRefuse(decision.raison))
-  }
-
   const ouverture = await ouvrirReessai(executionId, { maintenant })
   if (!ouverture.ok) {
-    switch (ouverture.raison) {
-      case "introuvable":
-        throw new ExecutionIntrouvableError()
-      case "pas-en-echec":
-        throw new ReessaiRefuseError(
-          "Seule une Exécution en échec peut être réessayée"
-        )
-      case "evenement-disparu":
-        throw new ReessaiRefuseError(
-          "L'Événement de cette Exécution n'existe plus : rien à rejouer"
-        )
-      case "regle-disparue":
-        throw new ReessaiRefuseError(
-          "La Règle de cette Exécution n'existe plus : rien à rejouer"
-        )
-      case "expire":
-        throw new ReessaiRefuseError(
-          `L'Événement a expiré le ${evenement.expiresAt.toISOString()} : sa fenêtre de rejeu est passée, un réessai pourrait produire un doublon.`
-        )
-    }
+    lancerRefusReessai(ouverture.raison)
   }
 
   const reessaiId = ouverture.execution.id

@@ -94,3 +94,11 @@ invalidé, et dix-sept espions et vingt-et-une assertions épinglaient ce no-op.
 lotissement `invalidateProduits` et la boucle d'invalidation de la suppression Facebook sont
 supprimés. Les autres points de cet ADR — surcharge partielle, frontière best-effort, tests sans
 effets — restent tels quels.
+
+## Amendement — `commande.ts` possède les effets post-commit de la Commande (2026-11-26)
+
+`defaultOrderEffects` (désormais privé), `SurchargesCommande` et l'exécution post-commit unifiée
+(`exécuterEffetsCommande`) vivent dans `lib/use-cases/commande.ts` plutôt que dans
+`lib/use-cases/orders.ts`. `placeOrder`, `updateOrderStatus` et `recevoirRetour` délèguent tous
+leurs effets post-commit à ce seul point d'entrée, et `lib/use-cases/retours.ts` n'importe plus
+`lib/use-cases/orders.ts`.
