@@ -133,7 +133,7 @@ Le parcours va du catalogue à la confirmation de commande, sans paiement en lig
 | E-mails | Resend | Codes de vérification, confirmations, statuts |
 | Images | Cloudflare R2 et URLs pré-signées | Téléversement direct, Brouillons d'Image |
 | Edge | Cloudflare Cache Rules et purge | Documents au PoP, purge au déploiement |
-| Déploiement | Docker Compose, Coolify, GitHub Actions | Images `runner` et `migrate`, CI |
+| Déploiement | Docker Compose, Coolify, GitHub Actions | Images `runner` et `migrate`, images de service durcies, CI |
 
 ## Architecture
 
@@ -500,6 +500,10 @@ La CI migre et sème `eguidar_probe`, puis passe son URL au build hôte par `DAT
 Pour Coolify, `docker-compose.yml` déclare `build.secrets: [database_url]`, dont la source est `database_url: environment: DATABASE_URL_BUILD` : la valeur n’est jamais écrite dans le fichier. Le build reste sur le réseau bridge par défaut et joint la base par le gateway de l’hôte (`build.extra_hosts: host.docker.internal:host-gateway`), que `postgres` publie sur `POSTGRES_HOST_BIND` — `127.0.0.1:5433` en local, et `10.0.1.1:5433` sous Coolify, où l’on pose `10.0.1.1` (l’IP de `docker0`) dans les variables d’environnement de l’application, buildtime comprises. Pas de `build.network: host` : Buildx 0.37.2+ refuse ce réseau si l’appelant ne passe pas `--allow=network.host`, et `docker compose build` — la commande que Coolify exécute — n’a pas ce drapeau ; `build.entitlements` ne l’accorde pas, un target bake ne fait que *demander* le privilège. Renseignez donc `DATABASE_URL_BUILD` avec une crédential **en lecture seule** et une URL en `host.docker.internal`.
 
 La nouvelle adresse de publication ne prend effet qu’à la recréation du service `postgres`. Avant le premier build qui suit ce réglage, recréez-le une fois (`docker compose up -d postgres` depuis le répertoire de déploiement, ou `docker compose -p <projet> up -d postgres` avec le fichier courant) : tant qu’il publie encore `127.0.0.1`, le build ne joint que le loopback et s’arrête en nommant le catalogue. L’injection des secrets de build Compose par Coolify reste à vérifier au premier déploiement : si elle manque, le build s’arrête de la même façon, et #763 inscrit alors le repli (pas de prérendu, génération à la demande) dans l’ADR.
+
+#### Durcir les images de service
+
+`postgres`, `redis` et `meilisearch` gardent la version épinglée dans `docker-compose.yml`, mais sont reconstruits depuis elle par `docker/*.Dockerfile` : `apk upgrade --no-cache` y remplace les paquets Alpine figés au jour de la publication de l’image amont, et `postgres` reconstruit `gosu` avec le Go courant. Aucune version de moteur ne bouge, donc `data.ms/VERSION` non plus (ADR-0066). Les deux cibles de l’application font de même dans l’étape `base` du `Dockerfile`, et l’image `migrate` épingle `npm@12.2.3` : ses dépendances embarquées ne se corrigent qu’avec une version d’`npm` publiée. [`docker-service-images.test.ts`](docker-service-images.test.ts) échoue si le `FROM` d’un de ces fichiers cesse de nommer l’image épinglée, si un service cesse d’être durci, ou si la mise à niveau disparaît. `docker compose up -d` et `docker compose build` construisent ces trois images quand elles manquent ; un `docker compose pull` les remplacerait par les images amont non durcies.
 
 #### Vérifier l’image de déploiement
 

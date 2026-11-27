@@ -1,6 +1,9 @@
 services:
   postgres:
     image: postgres:16-alpine
+    build:
+      context: .
+      dockerfile: docker/postgres.Dockerfile
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-eguidar}
@@ -21,6 +24,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    build:
+      context: .
+      dockerfile: docker/redis.Dockerfile
     restart: unless-stopped
     ports:
       - "127.0.0.1:6379:6379"
@@ -34,6 +40,9 @@ services:
 
   meilisearch:
     image: getmeili/meilisearch:v1.57.0
+    build:
+      context: .
+      dockerfile: docker/meilisearch.Dockerfile
     restart: unless-stopped
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
