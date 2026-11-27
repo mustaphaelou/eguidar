@@ -96,8 +96,8 @@ export function CarteIndicateurs({ stats }: { stats: DashboardStats }) {
           label="Produits"
           value={stats.productCount}
           hint={
-            stats.outOfStockCount > 0
-              ? `${stats.outOfStockCount} en rupture de stock`
+            stats.surveillance.enRupture > 0
+              ? `${stats.surveillance.enRupture} en rupture de stock`
               : "Catalogue actif"
           }
           icon={PackageIcon}

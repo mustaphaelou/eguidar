@@ -3,15 +3,13 @@ import { randomUUID } from "node:crypto"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { prisma } from "@/lib/db"
+import { SEUIL_STOCK_FAIBLE } from "@/lib/seuil-stock"
 import {
   cleDuSeau,
   libelleDuSeau,
   seauxDePeriode,
 } from "@/lib/tableau-de-bord-periode"
-import {
-  getDashboardStats,
-  LOW_STOCK_THRESHOLD,
-} from "@/lib/use-cases/admin-dashboard"
+import { getDashboardStats } from "@/lib/use-cases/admin-dashboard"
 
 const runId = randomUUID().slice(0, 8)
 const DAY_MS = 86_400_000
@@ -133,7 +131,7 @@ describe("admin dashboard stats", () => {
               name: "Faible",
               sku: `DB-${runId}-LOW`,
               priceDelta: 0,
-              stock: LOW_STOCK_THRESHOLD - 1,
+              stock: SEUIL_STOCK_FAIBLE - 1,
             },
             {
               name: "Rupture",
@@ -232,7 +230,7 @@ describe("admin dashboard stats", () => {
   })
 
   it("compte les Produits en rupture, y compris ceux qui n'ont aucune Variante", async () => {
-    const avant = (await getDashboardStats()).outOfStockCount
+    const avant = (await getDashboardStats()).surveillance.enRupture
     const sansVariante = await prisma.product.create({
       data: {
         name: "Produit sans variante",
@@ -246,12 +244,72 @@ describe("admin dashboard stats", () => {
     })
 
     try {
-      expect((await getDashboardStats()).outOfStockCount).toBe(avant + 1)
+      expect((await getDashboardStats()).surveillance.enRupture).toBe(avant + 1)
     } finally {
       await prisma.product.delete({ where: { id: sansVariante.id } })
     }
 
-    expect((await getDashboardStats()).outOfStockCount).toBe(avant)
+    expect((await getDashboardStats()).surveillance.enRupture).toBe(avant)
+  })
+
+  it("compte les Images produit sans texte alternatif et les Exécutions en échec dans surveillance", async () => {
+    const avant = (await getDashboardStats()).surveillance
+    const urlSansAlt = `https://cdn.example.test/products/dashboard-${runId}-sans-alt.webp`
+    const urlAvecAlt = `https://cdn.example.test/products/dashboard-${runId}-avec-alt.webp`
+    const regleId = `dashboard-surv-${runId}`
+
+    await prisma.imageProduit.createMany({
+      data: [
+        {
+          publicUrl: urlSansAlt,
+          mimeType: "image/webp",
+          byteSize: 1024,
+          width: 800,
+          height: 600,
+          alt: null,
+        },
+        {
+          publicUrl: urlAvecAlt,
+          mimeType: "image/webp",
+          byteSize: 1024,
+          width: 800,
+          height: 600,
+          alt: "Texte présent",
+        },
+      ],
+    })
+    await prisma.automationRule.create({
+      data: {
+        id: regleId,
+        name: "Règle surveillance dashboard",
+        trigger: "structure.modifiee",
+        condition: { type: "toujours" },
+        action: "invalidation.structure",
+      },
+    })
+    await prisma.automationRun.create({
+      data: {
+        ruleId: regleId,
+        action: "invalidation.structure",
+        status: "echoue",
+        attempt: 1,
+        startedAt: new Date(),
+        finishedAt: new Date(),
+        lastError: "erreur simulée",
+      },
+    })
+
+    try {
+      const apres = (await getDashboardStats()).surveillance
+      expect(apres.sansAlt).toBe(avant.sansAlt + 1)
+      expect(apres.echecs).toBe(avant.echecs + 1)
+    } finally {
+      await prisma.imageProduit.deleteMany({
+        where: { publicUrl: { in: [urlSansAlt, urlAvecAlt] } },
+      })
+      await prisma.automationRun.deleteMany({ where: { ruleId: regleId } })
+      await prisma.automationRule.deleteMany({ where: { id: regleId } })
+    }
   })
 
   it("lists variants at or below the low-stock threshold with product info", async () => {
@@ -267,7 +325,7 @@ describe("admin dashboard stats", () => {
     })
     expect("productSlug" in low[0]!).toBe(false)
     expect(
-      stats.lowStockVariants.some((v) => v.stock > LOW_STOCK_THRESHOLD)
+      stats.lowStockVariants.some((v) => v.stock > SEUIL_STOCK_FAIBLE)
     ).toBe(false)
   })
 

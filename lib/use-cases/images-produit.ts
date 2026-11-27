@@ -185,6 +185,10 @@ function correspondALaRecherche(
   )
 }
 
+export async function compterImagesSansAlt(): Promise<number> {
+  return prisma.imageProduit.count({ where: { alt: null } })
+}
+
 export async function listerImagesProduit(
   filtres: FiltresImagesProduit = {}
 ): Promise<PageImagesProduit> {
