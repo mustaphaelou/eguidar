@@ -66,6 +66,7 @@ The repository speaks French and most prompts do not. This table is the shortest
 
 | English | Français | Owning path |
 | --- | --- | --- |
+| announcement | Annonce | [`lib/use-cases/storefront.ts`](../lib/use-cases/storefront.ts) — the site-wide storefront ribbon read; [`components/storefront/ruban-annonce.tsx`](../components/storefront/ruban-annonce.tsx) — the storefront ribbon |
 | blog | Blog | [`lib/use-cases/blog.ts`](../lib/use-cases/blog.ts) — landing, article, related articles |
 | after-write | Après-écriture | [`lib/apres-ecriture.ts`](../lib/apres-ecriture.ts) — the one declaration per Administration write |
 | automation | Automatisation | [`lib/automations/executeur.ts`](../lib/automations/executeur.ts) — the worker that claims and executes |
