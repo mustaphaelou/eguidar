@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  entreesPersisteesDepuisGalerie,
   galerieImageProduitSchema,
   identifiantsBrouillonsGalerie,
 } from "@/lib/images-produit/galerie"
@@ -122,5 +123,29 @@ describe("les identifiants de Brouillon d'une Galerie produit", () => {
     ]
 
     expect(identifiantsBrouillonsGalerie(galerie)).toEqual([])
+  })
+})
+
+describe("projection d'une Galerie produit vers des entrées persistées", () => {
+  it("conserve l'ordre, rogne le texte alternatif non vide et omet les alt vides ou nuls", () => {
+    const resultat = entreesPersisteesDepuisGalerie([
+      { url: `${BASE_CDN}/products/1.webp`, alt: "  Vue de face  " },
+      { url: `${BASE_CDN}/products/2.webp`, alt: null },
+      { url: `${BASE_CDN}/products/3.webp`, alt: "   " },
+    ])
+
+    expect(resultat).toEqual([
+      {
+        kind: "persistee",
+        url: `${BASE_CDN}/products/1.webp`,
+        alt: "Vue de face",
+      },
+      { kind: "persistee", url: `${BASE_CDN}/products/2.webp` },
+      { kind: "persistee", url: `${BASE_CDN}/products/3.webp` },
+    ])
+  })
+
+  it("rend une liste vide pour une galerie vide", () => {
+    expect(entreesPersisteesDepuisGalerie([])).toEqual([])
   })
 })

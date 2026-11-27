@@ -32,7 +32,7 @@ import {
   type RefusImport,
 } from "@/lib/import-produits"
 import {
-  normaliserTexteAlternatif,
+  entreesPersisteesDepuisGalerie,
   type EntreeImageProduit,
 } from "@/lib/images-produit/galerie"
 import { toIndexableProduct } from "@/lib/index-projection"
@@ -43,7 +43,7 @@ import {
   type InstantaneCatalogue,
   type PlanProduit,
 } from "@/lib/plan-import-produits"
-import { urlsImagesProduit } from "@/lib/product-metrics"
+import { specificationsProduit } from "@/lib/product-metrics"
 import {
   createProduct,
   defaultCatalogEffects,
@@ -51,6 +51,7 @@ import {
   type CatalogEffects,
   type ProductInput,
 } from "@/lib/use-cases/admin-catalog"
+import { lireGalerieProduit } from "@/lib/use-cases/images-produit"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
 import {
   hasUniqueViolation,
@@ -588,26 +589,13 @@ async function lireLesChampsPreserves(
     },
   })
 
-  const urls = urlsImagesProduit(produit.images)
-  const registre =
-    urls.length === 0
-      ? []
-      : await prisma.imageProduit.findMany({
-          where: { publicUrl: { in: urls } },
-          select: { publicUrl: true, alt: true },
-        })
-  const altParUrl = new Map(
-    registre.map((ligne) => [ligne.publicUrl, ligne.alt])
+  const images = entreesPersisteesDepuisGalerie(
+    await lireGalerieProduit(produit.images)
   )
 
   return {
-    specs: produit.specs as unknown as Record<string, string>,
-    images: urls.map((url) => {
-      const alt = normaliserTexteAlternatif(altParUrl.get(url))
-      return alt === null
-        ? { kind: "persistee" as const, url }
-        : { kind: "persistee" as const, url, alt }
-    }),
+    specs: specificationsProduit(produit.specs),
+    images,
     isFeatured: produit.isFeatured,
     featuredOrder: produit.featuredOrder,
     freeShipping: produit.freeShipping,

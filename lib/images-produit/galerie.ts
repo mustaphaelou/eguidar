@@ -77,6 +77,17 @@ export type EntreeImageProduit = z.infer<typeof entreeGalerieImageProduitSchema>
 export type EntreeImagePersistee = z.infer<typeof entreeImagePersisteeSchema>
 export type EntreeBrouillonImage = z.infer<typeof entreeBrouillonImageSchema>
 
+export function entreesPersisteesDepuisGalerie(
+  galerie: readonly ImageProduitGalerie[]
+): EntreeImagePersistee[] {
+  return galerie.map(({ url, alt }) => {
+    const normalise = normaliserTexteAlternatif(alt)
+    return normalise === null
+      ? { kind: "persistee", url }
+      : { kind: "persistee", url, alt: normalise }
+  })
+}
+
 export function identifiantsBrouillonsGalerie(
   galerie: readonly EntreeImageProduit[]
 ): string[] {

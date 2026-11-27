@@ -764,6 +764,55 @@ describe("appliquerLeLot — le merge complet", () => {
     })
     expect(second.peutAppliquer).toBe(true)
   })
+
+  it("normalise des spécifications JSON mal formées en objet vide lors de la mise à jour", async () => {
+    const structureId = await creerLaStructure()
+    const produit = await prisma.product.create({
+      data: {
+        slug: slug("specs-malformees"),
+        name: "Table",
+        brand: "Maison",
+        description: "Chêne",
+        categoryId: structureId,
+        price: 4000,
+        specs: { Matière: "Chêne", Poids: 12 },
+        images: [IMAGE_FACE],
+        variants: {
+          create: [
+            {
+              name: "Standard",
+              sku: sku("TABLE-1"),
+              priceDelta: 0,
+              stock: 2,
+            },
+          ],
+        },
+      },
+    })
+
+    const contenu = fichierCsv(
+      ligneCsv({
+        slug: slug("specs-malformees"),
+        variant_sku: sku("TABLE-1"),
+        variant_stock: "5",
+      })
+    )
+    const lotId = await preparerLeLot(contenu)
+    const effets = effetsDeTest()
+
+    const resultat = await appliquerLeLot(lotId, 0, effets.overrides)
+
+    expect(resultat).toMatchObject({
+      ecrits: 1,
+      echecs: [],
+      statut: "termine",
+    })
+    const apres = await prisma.product.findUniqueOrThrow({
+      where: { id: produit.id },
+      select: { specs: true },
+    })
+    expect(apres.specs).toEqual({})
+  })
 })
 
 function fichierDeNProduits(prefixe: string, nombre: number): string {
