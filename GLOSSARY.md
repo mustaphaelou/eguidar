@@ -646,7 +646,7 @@ la barre latérale, sous laquelle rien ne défile, ne le porte jamais.
 _Avoid_: header admin, top bar, site header
 
 **Tableau de bord**:
-La page d'accueil de l'Administration : chiffre d'affaires encaissé, indicateurs clés et activité récente.
+La page d'accueil de l'Administration : chiffre d'affaires encaissé, indicateurs clés, activité récente et points de surveillance (ruptures, Images produit sans Texte alternatif, Exécutions d'automatisation en échec).
 _Avoid_: dashboard
 
 **Liste des Commandes**:

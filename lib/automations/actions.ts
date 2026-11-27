@@ -16,10 +16,8 @@ import type {
 } from "@/lib/automations/regles"
 import { prisma } from "@/lib/db"
 import { toIndexableProduct } from "@/lib/index-projection"
-import {
-  getDashboardStats,
-  LOW_STOCK_THRESHOLD,
-} from "@/lib/use-cases/admin-dashboard"
+import { SEUIL_STOCK_FAIBLE } from "@/lib/seuil-stock"
+import { getDashboardStats } from "@/lib/use-cases/admin-dashboard"
 
 export interface ContexteAction {
   evenement: {
@@ -70,7 +68,7 @@ async function envoyerDigestStockBas(contexte: ContexteAction): Promise<void> {
     sujet: `Eguidar — stock bas du ${jour}`,
     texte: construireDigestStockBas({
       jour,
-      seuil: LOW_STOCK_THRESHOLD,
+      seuil: SEUIL_STOCK_FAIBLE,
       lignes,
     }),
     cleIdempotence: `digest.stock-bas/${jour}`,

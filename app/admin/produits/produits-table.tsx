@@ -76,6 +76,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatPrice } from "@/lib/money"
+import { SEUIL_STOCK_FAIBLE } from "@/lib/seuil-stock"
 import { cn } from "@/lib/utils"
 import {
   CHAMP_IDS_LOT,
@@ -131,8 +132,6 @@ export interface StructureDuFiltre {
 }
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
-
-const SEUIL_STOCK_FAIBLE = 5
 
 const COLONNES_CACHEES = {
   [MISE_EN_AVANT_COLUMN_ID]: false,

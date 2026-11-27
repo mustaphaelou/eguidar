@@ -1,5 +1,7 @@
+import { compterExecutionsEnEchec } from "@/lib/automations/historique"
 import { prisma } from "@/lib/db"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
+import { SEUIL_STOCK_FAIBLE } from "@/lib/seuil-stock"
 import {
   cleDuSeau,
   libelleDuSeau,
@@ -8,8 +10,13 @@ import {
   type Periode,
   type PointDeChiffreAffaires,
 } from "@/lib/tableau-de-bord-periode"
+import { compterImagesSansAlt } from "@/lib/use-cases/images-produit"
 
-export const LOW_STOCK_THRESHOLD = 5
+export interface CompteursSurveillance {
+  enRupture: number
+  sansAlt: number
+  echecs: number
+}
 
 export interface LowStockVariant {
   id: string
@@ -31,7 +38,7 @@ export interface RecentOrder {
 
 export interface DashboardStats {
   productCount: number
-  outOfStockCount: number
+  surveillance: CompteursSurveillance
   orderCount: number
   pendingOrderCount: number
   chiffreAffairesBrut30j: number
@@ -65,6 +72,8 @@ export async function getDashboardStats(
   const [
     productCount,
     outOfStockCount,
+    imagesSansAlt,
+    executionsEnEchec,
     orderCount,
     pendingOrderCount,
     lowStockVariants,
@@ -79,10 +88,12 @@ export async function getDashboardStats(
   ] = await Promise.all([
     prisma.product.count(),
     prisma.product.count({ where: { variants: { every: { stock: 0 } } } }),
+    compterImagesSansAlt(),
+    compterExecutionsEnEchec(),
     prisma.order.count(),
     prisma.order.count({ where: { status: "pending" } }),
     prisma.productVariant.findMany({
-      where: { stock: { lte: LOW_STOCK_THRESHOLD } },
+      where: { stock: { lte: SEUIL_STOCK_FAIBLE } },
       orderBy: { stock: "asc" },
       include: { product: { select: { id: true, name: true } } },
     }),
@@ -167,7 +178,11 @@ export async function getDashboardStats(
 
   return {
     productCount,
-    outOfStockCount,
+    surveillance: {
+      enRupture: outOfStockCount,
+      sansAlt: imagesSansAlt,
+      echecs: executionsEnEchec,
+    },
     orderCount,
     pendingOrderCount,
     chiffreAffairesBrut30j,
