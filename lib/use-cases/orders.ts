@@ -6,7 +6,6 @@ import {
   type CommandeListingParams,
 } from "@/lib/commande-listing"
 import { prisma } from "@/lib/db"
-import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import { lirePanierClient } from "@/lib/panier"
 import {
@@ -22,40 +21,21 @@ import { montantsDeLaCommande } from "@/lib/use-cases/montants-commande"
 import {
   effectuerLaTransition,
   écrireLeStock,
-  type EffetsStock,
-  exécuterStock,
+  exécuterEffetsCommande,
   reserver,
   toOrderEmailSnapshot,
   verrouillerCommande,
+  type SurchargesCommande,
 } from "@/lib/use-cases/commande"
-import {
-  avecSurcharges,
-  messageDeValidation,
-} from "@/lib/use-cases/mutation-squelette"
+import { messageDeValidation } from "@/lib/use-cases/mutation-squelette"
 import { declarerApresEcriture } from "@/lib/apres-ecriture"
-import {
-  executer as executerCommande,
-  type EffetsCommande,
-} from "@/lib/use-cases/apres-ecriture/commande"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
-
-export type OrderEffects = EffetsCommande
-
-type SurchargesCommande = {
-  email?: Partial<OrderEffects>
-  stock?: Partial<EffetsStock>
-}
 
 export {
   InvalidOrderTransitionError,
   OutOfStockError,
   type OutOfStockItem,
 } from "@/lib/use-cases/commande"
-
-export const defaultOrderEffects: OrderEffects = {
-  sendOrderPlacedEmail,
-  sendOrderStatusEmail,
-}
 
 export interface CheckoutInput {
   cityId: string
@@ -231,7 +211,6 @@ export async function placeOrder(
   input: CheckoutInput,
   surcharges?: SurchargesCommande
 ) {
-  const effects = avecSurcharges(defaultOrderEffects, surcharges?.email)
   const data = parseCheckoutInput(input)
 
   const user = await prisma.user.findUnique({
@@ -292,8 +271,7 @@ export async function placeOrder(
     return { order: created, plan, ecriture }
   })
 
-  await exécuterStock(ecriture, surcharges?.stock ?? {})
-  await executerCommande(plan, effects)
+  await exécuterEffetsCommande({ plan, ecriture }, surcharges)
   return order
 }
 
@@ -352,9 +330,7 @@ export async function updateOrderStatus(
   actorId: string,
   surcharges?: SurchargesCommande
 ) {
-  const effects = avecSurcharges(defaultOrderEffects, surcharges?.email)
-
-  const { commande, plan, ecriture } = await prisma.$transaction(async (tx) => {
+  const transition = await prisma.$transaction(async (tx) => {
     if (!(await verrouillerCommande(tx, orderId))) {
       throw new OrderNotFoundError()
     }
@@ -372,9 +348,8 @@ export async function updateOrderStatus(
     })
   })
 
-  await exécuterStock(ecriture, surcharges?.stock ?? {})
-  await executerCommande(plan, effects)
-  return commande
+  await exécuterEffetsCommande(transition, surcharges)
+  return transition.commande
 }
 
 export async function getAdminOrder(

@@ -67,6 +67,18 @@ describe("peutTransitionner", () => {
   it("lets the reception reach Retournée through the wide table", () => {
     for (const statut of ["shipped", "delivered"] as const) {
       expect(peutTransitionner(statut, "returned"), statut).toBe(true)
+      expect(peutTransitionner(statut, "returned", "retour"), statut).toBe(true)
+    }
+  })
+
+  it("restricts administration origin to the Administration matrix", () => {
+    for (const statut of STATUTS) {
+      for (const cible of STATUTS) {
+        expect(
+          peutTransitionner(statut, cible, "administration"),
+          `${statut} → ${cible}`
+        ).toBe(MATRICE_ADMINISTRATION[statut].includes(cible))
+      }
     }
   })
 

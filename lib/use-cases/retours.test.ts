@@ -12,11 +12,11 @@ import {
 
 import { prisma } from "@/lib/db"
 import type { ReturnReason } from "@/lib/generated/prisma/client"
-import type { EffetsStock } from "@/lib/use-cases/commande"
 import {
   InvalidOrderTransitionError,
-  type OrderEffects,
-} from "@/lib/use-cases/orders"
+  type EffetsCommande as OrderEffects,
+  type EffetsStock,
+} from "@/lib/use-cases/commande"
 import {
   CommandeDuRetourIntrouvableError,
   declarerRetour,

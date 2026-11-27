@@ -30,7 +30,10 @@ import {
   type OrderEmailSnapshot,
 } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
-import type { EffetsStock } from "@/lib/use-cases/commande"
+import type {
+  EffetsCommande as OrderEffects,
+  EffetsStock,
+} from "@/lib/use-cases/commande"
 import {
   CheckoutValidationError,
   DevisPériméError,
@@ -45,7 +48,6 @@ import {
   placeOrder,
   updateOrderStatus,
   type CheckoutInput,
-  type OrderEffects,
 } from "@/lib/use-cases/orders"
 
 vi.mock("@/lib/use-cases/session-courante", async () => {
