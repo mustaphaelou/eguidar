@@ -794,6 +794,7 @@ describe("les écritures de maintenance sans conséquence durable", () => {
     declarerApresEcriture("ville.modifiee", { villeId: "ville-1" }),
     declarerApresEcriture("ville.supprimee", { villeId: "ville-1" }),
     declarerApresEcriture("livraison.reglee", { livraisonId: "default" }),
+    declarerApresEcriture("annonce.reglee", { annonceId: "default" }),
     declarerApresEcriture("image.texte-alternatif", {
       produits: [{ id: "produit-a", slug: "produit-a" }],
     }),
@@ -811,7 +812,8 @@ describe("les écritures de maintenance sans conséquence durable", () => {
       })
     }
 
-    const [creation, , suppression, reglage, texte] = plansDeMaintenance()
+    const [creation, , suppression, reglage, annonce, texte] =
+      plansDeMaintenance()
     expect(creation!.consequences[0]!.entite).toEqual({
       type: "ville",
       id: "ville-1",
@@ -822,6 +824,10 @@ describe("les écritures de maintenance sans conséquence durable", () => {
     })
     expect(reglage!.consequences[0]!.entite).toEqual({
       type: "livraison",
+      id: "default",
+    })
+    expect(annonce!.consequences[0]!.entite).toEqual({
+      type: "annonce",
       id: "default",
     })
     expect(texte!.consequences[0]!.entite).toEqual({

@@ -1,7 +1,12 @@
 import { z } from "zod"
 
+import {
+  ANNONCE_LIEN_LIBELLE_MAX_LENGTH,
+  ANNONCE_MESSAGE_MAX_LENGTH,
+} from "@/lib/annonce-contrat"
 import { declarerApresEcriture } from "@/lib/apres-ecriture"
 import { prisma } from "@/lib/db"
+import { safeDestination } from "@/lib/lien-de-connexion"
 import {
   executer as executerAnnonce,
   type EffetsAnnonce,
@@ -13,23 +18,7 @@ import {
 } from "@/lib/use-cases/mutation-squelette"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
-export const ANNONCE_MESSAGE_MAX_LENGTH = 160
-export const ANNONCE_LIEN_LIBELLE_MAX_LENGTH = 40
-
-const UNSAFE_DESTINATION_CHARS = /[\\\u0000-\u001f\u007f]/
-const PERCENT_ESCAPE = /%([0-9a-f]{2})/gi
-
-function decodePercentEscapes(value: string): string {
-  return value.replace(PERCENT_ESCAPE, (_, hex: string) =>
-    String.fromCharCode(Number.parseInt(hex, 16))
-  )
-}
-
-function estCheminInterneSur(raw: string): boolean {
-  if (!raw.startsWith("/") || raw.startsWith("//")) return false
-  const decoded = decodePercentEscapes(raw)
-  return !decoded.startsWith("//") && !UNSAFE_DESTINATION_CHARS.test(decoded)
-}
+export { ANNONCE_LIEN_LIBELLE_MAX_LENGTH, ANNONCE_MESSAGE_MAX_LENGTH }
 
 export interface AnnonceInput {
   actif: boolean
@@ -111,7 +100,7 @@ const annonceInputSchema = z
       })
     }
 
-    if (data.lienUrl !== null && !estCheminInterneSur(data.lienUrl)) {
+    if (data.lienUrl !== null && safeDestination(data.lienUrl) === null) {
       ctx.addIssue({
         code: "custom",
         path: ["lienUrl"],

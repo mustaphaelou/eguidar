@@ -103,7 +103,7 @@ describe("getAnnonceActive", () => {
     vi.clearAllMocks()
   })
 
-  it("étiquette la lecture avec ANNONCE_TAG et la durée de cache boutique", async () => {
+  it("étiquette la lecture avec ANNONCE_TAG et la durée de cache de navigation", async () => {
     await prisma.annonce.create({
       data: {
         id: "default",
@@ -122,6 +122,9 @@ describe("getAnnonceActive", () => {
       lienLibelle: "En savoir plus",
     })
     expect(cacheTag).toHaveBeenCalledWith(ANNONCE_TAG)
-    expect(cacheLife).toHaveBeenCalledWith({ revalidate: 900, expire: 86400 })
+    expect(cacheLife).toHaveBeenCalledWith({
+      revalidate: 31_536_000,
+      expire: 31_536_000,
+    })
   })
 })

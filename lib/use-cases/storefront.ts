@@ -1,5 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache"
 
+import { apparierLienAnnonce } from "@/lib/annonce-contrat"
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
 import type { ImageProduitGalerie } from "@/lib/images-produit/galerie"
@@ -324,14 +325,12 @@ export async function fetchAnnonceActive(): Promise<AnnonceActive | null> {
   const message = annonce.message.trim()
   if (message === "") return null
 
-  const lienUrl = annonce.lienUrl?.trim() ?? ""
-  const lienLibelle = annonce.lienLibelle?.trim() ?? ""
-  const lienComplet = lienUrl !== "" && lienLibelle !== ""
+  const lien = apparierLienAnnonce(annonce.lienUrl, annonce.lienLibelle)
 
   return {
     message,
-    lienUrl: lienComplet ? lienUrl : null,
-    lienLibelle: lienComplet ? lienLibelle : null,
+    lienUrl: lien?.url ?? null,
+    lienLibelle: lien?.libelle ?? null,
   }
 }
 
