@@ -89,19 +89,27 @@ test.describe("la fiche du Produit de production", () => {
     await expect(
       page.getByRole("heading", { name: "Caractéristiques", exact: true })
     ).toBeVisible()
-    await expect(page.getByText(PREMIERE_LIGNE_DE_LA_DESCRIPTION)).toBeVisible()
-    await expect(page.getByText(SECONDE_LIGNE_DE_LA_DESCRIPTION)).toBeVisible()
+    const descriptionAffichee = page
+      .getByText(PREMIERE_LIGNE_DE_LA_DESCRIPTION)
+      .filter({ visible: true })
+    const suiteDeLaDescriptionAffichee = page
+      .getByText(SECONDE_LIGNE_DE_LA_DESCRIPTION)
+      .filter({ visible: true })
+    await expect(descriptionAffichee).toBeVisible()
+    await expect(suiteDeLaDescriptionAffichee).toBeVisible()
     await expect(
       page.getByText(/est un produit de notre rayon Smartphones/)
     ).toHaveCount(0)
 
-    const caracteristiques = page.locator("dl")
-    await expect(caracteristiques).toContainText("Marque")
-    await expect(caracteristiques).toContainText("Eguidar")
-    await expect(caracteristiques).toContainText("Déclinaisons")
-    await expect(caracteristiques).toContainText("256 Go · 512 Go")
-    await expect(caracteristiques).toContainText("Livraison")
-    await expect(caracteristiques).toContainText("Offerte")
+    const caracteristiquesAffichees = page
+      .locator("dl")
+      .filter({ visible: true })
+    await expect(caracteristiquesAffichees).toContainText("Marque")
+    await expect(caracteristiquesAffichees).toContainText("Eguidar")
+    await expect(caracteristiquesAffichees).toContainText("Déclinaisons")
+    await expect(caracteristiquesAffichees).toContainText("256 Go · 512 Go")
+    await expect(caracteristiquesAffichees).toContainText("Livraison")
+    await expect(caracteristiquesAffichees).toContainText("Offerte")
   })
 
   test("montre une vignette par image et change l'image principale", async ({
@@ -302,6 +310,7 @@ test.describe("la fiche du Produit de production", () => {
         .boundingBox()
       const boiteFil = await page
         .locator('nav[aria-label="Fil d\'Ariane"] ol')
+        .filter({ visible: true })
         .boundingBox()
       const boiteSection = await page
         .locator("main section")
