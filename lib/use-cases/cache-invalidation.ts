@@ -184,7 +184,7 @@ export function invalidateLivraison(): void {
 }
 
 export function revaliderAnnonce(): void {
-  revaliderTags([ANNONCE_TAG])
+  revalidateTag(ANNONCE_TAG, { expire: 0 })
   revalidatePath("/admin/annonce")
 }
 
