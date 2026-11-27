@@ -469,7 +469,7 @@ describe("ouvrirReessai", () => {
 
   it("refus introuvable", async () => {
     const res = await ouvrirReessai("inexistant", { maintenant: MAINTENANT })
-    expect(res).toEqual({ ok: false, raison: "introuvable" })
+    expect(res).toEqual({ ok: false, raison: { type: "introuvable" } })
   })
 
   it("refus pas-en-echec", async () => {
@@ -479,7 +479,7 @@ describe("ouvrirReessai", () => {
       data: { status: "reussi" },
     })
     const res = await ouvrirReessai(execution.id, { maintenant: MAINTENANT })
-    expect(res).toMatchObject({ ok: false, raison: "pas-en-echec" })
+    expect(res).toEqual({ ok: false, raison: { type: "pas-en-echec" } })
   })
 
   it("refus evenement-disparu", async () => {
@@ -489,7 +489,7 @@ describe("ouvrirReessai", () => {
       data: { eventId: null },
     })
     const res = await ouvrirReessai(execution.id, { maintenant: MAINTENANT })
-    expect(res).toMatchObject({ ok: false, raison: "evenement-disparu" })
+    expect(res).toEqual({ ok: false, raison: { type: "evenement-disparu" } })
   })
 
   it("refus regle-disparue", async () => {
@@ -499,24 +499,73 @@ describe("ouvrirReessai", () => {
       data: { ruleId: null },
     })
     const res = await ouvrirReessai(execution.id, { maintenant: MAINTENANT })
-    expect(res).toMatchObject({ ok: false, raison: "regle-disparue" })
+    expect(res).toEqual({ ok: false, raison: { type: "regle-disparue" } })
   })
 
-  it("refus expire et n'écrit rien", async () => {
+  it("refus evenement-expire et n'écrit rien", async () => {
     const { evenement, execution } = await preparerEchec()
+    const expireLe = new Date(MAINTENANT.getTime() - 60000)
     await prisma.automationEvent.update({
       where: { id: evenement.id },
-      data: { expiresAt: new Date(MAINTENANT.getTime() - 60000) },
+      data: { expiresAt: expireLe },
     })
     const avant = await prisma.automationRun.count({
       where: { eventId: evenement.id },
     })
     const res = await ouvrirReessai(execution.id, { maintenant: MAINTENANT })
-    expect(res).toMatchObject({ ok: false, raison: "expire" })
+    expect(res).toEqual({
+      ok: false,
+      raison: { type: "evenement-expire", expireLe },
+    })
     const apres = await prisma.automationRun.count({
       where: { eventId: evenement.id },
     })
     expect(apres).toBe(avant)
+  })
+
+  it("refus regle-desactivee dans la transaction et n'écrit rien", async () => {
+    const { evenement, regle, execution } = await preparerEchec()
+    await prisma.automationRule.update({
+      where: { id: regle.id },
+      data: { enabled: false },
+    })
+    const avant = await prisma.automationRun.count({
+      where: { eventId: evenement.id },
+    })
+    try {
+      const res = await ouvrirReessai(execution.id, { maintenant: MAINTENANT })
+      expect(res).toEqual({
+        ok: false,
+        raison: { type: "regle-desactivee" },
+      })
+      const apres = await prisma.automationRun.count({
+        where: { eventId: evenement.id },
+      })
+      expect(apres).toBe(avant)
+    } finally {
+      await prisma.automationRule.update({
+        where: { id: regle.id },
+        data: { enabled: true },
+      })
+    }
+  })
+
+  it("absorbe un conflit d'unicité sur deux réessais concurrents", async () => {
+    const { execution } = await preparerEchec()
+    const [a, b] = await Promise.all([
+      ouvrirReessai(execution.id, { maintenant: MAINTENANT }),
+      ouvrirReessai(execution.id, { maintenant: MAINTENANT }),
+    ])
+    expect(a.ok).toBe(true)
+    expect(b.ok).toBe(true)
+    if (a.ok && b.ok) {
+      expect(a.execution.id).not.toBe(b.execution.id)
+      const runs = await prisma.automationRun.findMany({
+        where: { id: { in: [a.execution.id, b.execution.id] } },
+        orderBy: { attempt: "asc" },
+      })
+      expect(runs.map((r) => r.attempt)).toEqual([4, 5])
+    }
   })
 
   it("tentative manuelle = max + 1 et retourne event/regle", async () => {

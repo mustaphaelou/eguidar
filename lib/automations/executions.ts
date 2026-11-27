@@ -2,16 +2,20 @@ import { Prisma } from "@/lib/generated/prisma/client"
 import type { AutomationEvent } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import { hasUniqueViolation } from "@/lib/use-cases/unique-violation"
+import {
+  deciderAutomation,
+  type RaisonIgnoree,
+} from "@/lib/automations/decision"
 import { versRegle, type RegleAutomation } from "@/lib/automations/regles"
 
 export type IssueExecution = "reussi" | "echoue" | "ignore"
 
 export type RefusReessai =
-  | "introuvable"
-  | "pas-en-echec"
-  | "evenement-disparu"
-  | "regle-disparue"
-  | "expire"
+  | { type: "introuvable" }
+  | { type: "pas-en-echec" }
+  | { type: "evenement-disparu" }
+  | { type: "regle-disparue" }
+  | RaisonIgnoree
 
 export const MOTIF_ANNULATION = "annulée : règle désactivée"
 
@@ -244,20 +248,39 @@ export async function ouvrirReessai(
     })
 
     if (!execution)
-      return { ok: false as const, raison: "introuvable" as const }
+      return { ok: false as const, raison: { type: "introuvable" as const } }
     if (execution.status !== "echoue")
-      return { ok: false as const, raison: "pas-en-echec" as const }
+      return { ok: false as const, raison: { type: "pas-en-echec" as const } }
     if (!execution.event)
-      return { ok: false as const, raison: "evenement-disparu" as const }
+      return {
+        ok: false as const,
+        raison: { type: "evenement-disparu" as const },
+      }
     if (!execution.rule)
-      return { ok: false as const, raison: "regle-disparue" as const }
+      return {
+        ok: false as const,
+        raison: { type: "regle-disparue" as const },
+      }
 
     const evenement = execution.event
-    if (evenement.expiresAt.getTime() <= maintenant.getTime()) {
-      return { ok: false as const, raison: "expire" as const }
-    }
-
     const regle = versRegle(execution.rule)
+
+    const decision = deciderAutomation(
+      {
+        trigger: regle.declencheur,
+        enabled: regle.actif,
+        condition: regle.condition,
+      },
+      {
+        type: evenement.type,
+        payload: evenement.payload,
+        expiresAt: evenement.expiresAt,
+      },
+      maintenant
+    )
+    if (decision.decision === "ignorer") {
+      return { ok: false as const, raison: decision.raison }
+    }
 
     const agregat = await tx.automationRun.aggregate({
       where: { eventId: evenement.id, ruleId: regle.id },
@@ -291,38 +314,6 @@ export async function ouvrirReessai(
     if (!hasUniqueViolation(error, ["eventId", "ruleId", "attempt"])) {
       throw error
     }
-    return avecClient(undefined, async (tx) => {
-      const execution = await tx.automationRun.findUnique({
-        where: { id: executionId },
-        include: { event: true, rule: true },
-      })
-      if (!execution || !execution.event || !execution.rule) {
-        throw error
-      }
-      const evenement = execution.event
-      const regle = versRegle(execution.rule)
-      const agregat = await tx.automationRun.aggregate({
-        where: { eventId: evenement.id, ruleId: regle.id },
-        _max: { attempt: true },
-      })
-      const nouvelAttempt = (agregat._max.attempt ?? 0) + 1
-      const cree = await tx.automationRun.create({
-        data: {
-          eventId: evenement.id,
-          ruleId: regle.id,
-          action: regle.action,
-          status: "en_cours",
-          attempt: nouvelAttempt,
-          startedAt: maintenant,
-          trigger: "manuel",
-        },
-      })
-      return {
-        ok: true as const,
-        execution: { id: cree.id },
-        evenement,
-        regle,
-      }
-    })
+    return avecClient(undefined, ouvrirDans)
   }
 }
