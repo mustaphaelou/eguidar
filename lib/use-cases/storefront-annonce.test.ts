@@ -95,6 +95,24 @@ describe("fetchAnnonceActive", () => {
       lienLibelle: null,
     })
   })
+
+  it("retourne null quand la table Annonce n'existe pas encore (P2021 au build avant migration)", async () => {
+    vi.spyOn(prisma.annonce, "findUnique").mockRejectedValueOnce(
+      Object.assign(new Error("The table `public.Annonce` does not exist."), {
+        code: "P2021",
+      })
+    )
+
+    expect(await fetchAnnonceActive()).toBeNull()
+  })
+
+  it("propage les autres erreurs de base de données", async () => {
+    vi.spyOn(prisma.annonce, "findUnique").mockRejectedValueOnce(
+      new Error("connection refused")
+    )
+
+    await expect(fetchAnnonceActive()).rejects.toThrow("connection refused")
+  })
 })
 
 describe("getAnnonceActive", () => {
