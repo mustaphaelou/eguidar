@@ -309,16 +309,36 @@ export interface AnnonceActive {
   lienLibelle: string | null
 }
 
+function estTableAbsente(erreur: unknown): boolean {
+  return (
+    typeof erreur === "object" &&
+    erreur !== null &&
+    "code" in erreur &&
+    erreur.code === "P2021"
+  )
+}
+
 export async function fetchAnnonceActive(): Promise<AnnonceActive | null> {
-  const annonce = await prisma.annonce.findUnique({
-    where: { id: "default" },
-    select: {
-      actif: true,
-      message: true,
-      lienUrl: true,
-      lienLibelle: true,
-    },
-  })
+  let annonce: {
+    actif: boolean
+    message: string
+    lienUrl: string | null
+    lienLibelle: string | null
+  } | null
+  try {
+    annonce = await prisma.annonce.findUnique({
+      where: { id: "default" },
+      select: {
+        actif: true,
+        message: true,
+        lienUrl: true,
+        lienLibelle: true,
+      },
+    })
+  } catch (erreur) {
+    if (estTableAbsente(erreur)) return null
+    throw erreur
+  }
 
   if (!annonce || !annonce.actif) return null
 
