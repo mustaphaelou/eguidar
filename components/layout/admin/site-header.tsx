@@ -47,6 +47,7 @@ const SECTION_LABELS: Record<string, string> = {
   commandes: "Commandes",
   villes: "Villes",
   livraison: "Livraison",
+  annonce: "Annonce",
   medias: "Médias",
   automatisations: "Automatisations",
   nouveau: "Nouveau",
