@@ -1,3 +1,4 @@
+import type { DependancesAutomations } from "@/lib/automations/dependances"
 import type {
   TypeEntiteAutomation,
   TypeEvenementAutomation,
@@ -14,58 +15,11 @@ import type {
   RegleAutomation,
 } from "@/lib/automations/regles"
 import { prisma } from "@/lib/db"
-import type { OrderEmailSnapshot } from "@/lib/emails"
-import type { OrderStatus } from "@/lib/generated/prisma/client"
-import {
-  toIndexableProduct,
-  type IndexableProduct,
-} from "@/lib/index-projection"
-import type { DemandePurge } from "@/lib/purge-edge"
+import { toIndexableProduct } from "@/lib/index-projection"
 import {
   getDashboardStats,
   LOW_STOCK_THRESHOLD,
 } from "@/lib/use-cases/admin-dashboard"
-import type { CatalogueEventProduct } from "@/lib/use-cases/cache-invalidation"
-
-export interface EntreeEmailDigest {
-  destinataire: string
-  sujet: string
-  texte: string
-  cleIdempotence: string
-}
-
-export interface PortEmailsAutomation {
-  envoyerConfirmationCommande(
-    snapshot: OrderEmailSnapshot,
-    cleIdempotence: string
-  ): Promise<void>
-  envoyerStatutCommande(
-    snapshot: OrderEmailSnapshot,
-    statut: OrderStatus,
-    cleIdempotence: string
-  ): Promise<void>
-  envoyerDigest(entree: EntreeEmailDigest): Promise<void>
-}
-
-export interface PortRechercheAutomation {
-  indexer(produits: readonly IndexableProduct[]): Promise<void>
-  desindexer(produitId: string): Promise<void>
-  listerDocuments(): Promise<readonly IndexableProduct[]>
-}
-
-export interface PortCatalogueAutomation {
-  revaliderCatalogue(produit: CatalogueEventProduct): void | Promise<void>
-  revaliderStructure(): void | Promise<void>
-  purger(demande: DemandePurge): Promise<void>
-}
-
-export interface DependancesAutomations {
-  emails: PortEmailsAutomation
-  recherche: PortRechercheAutomation
-  catalogue: PortCatalogueAutomation
-  maintenant: Date
-  signaler: (message: string) => void
-}
 
 export interface ContexteAction {
   evenement: {

@@ -10,7 +10,10 @@ import {
   deciderAutomation,
   type DecisionAutomation,
 } from "@/lib/automations/decision"
-import { type DependancesAutomations } from "@/lib/automations/actions"
+import {
+  dependancesAutomations,
+  type DependancesAutomations,
+} from "@/lib/automations/dependances"
 import { executerActionOuRedeclaration } from "@/lib/automations/execution-durable"
 import {
   ecrireRevisionRegle,
@@ -469,7 +472,7 @@ function lancerRefusReessai(raison: RefusReessai): never {
 
 export async function reessayerExecution(
   executionId: string,
-  dependances: DependancesAutomations
+  dependances: DependancesAutomations = dependancesAutomations(new Date())
 ): Promise<ResultatReessai> {
   const maintenant = dependances.maintenant
   const ouverture = await ouvrirReessai(executionId, { maintenant })

@@ -1,4 +1,4 @@
-import type { DependancesAutomations } from "@/lib/automations/actions"
+import type { DependancesAutomations } from "@/lib/automations/dependances"
 import type { Charge, TypeEvenementAutomation } from "@/lib/automations/charge"
 import type {
   ConsequenceApresEcriture,
@@ -38,10 +38,6 @@ import {
   type EffetsStructure,
   type LecturesStructure,
 } from "@/lib/use-cases/apres-ecriture/structure"
-import {
-  supprimerImagesCategorieDuStockage,
-  supprimerImagesProduitDuStockage,
-} from "@/lib/use-cases/images-produit"
 import { lireStructure } from "@/lib/use-cases/lecture-structure"
 
 export interface PontExecution {
@@ -158,7 +154,7 @@ function pontCatalogue(
     revalidateCatalog: dependances.catalogue.revaliderCatalogue,
     purgeCatalogue: (produit) =>
       dependances.catalogue.purger(demandeDePurgeCatalogue(produit)),
-    deleteImages: supprimerImagesProduitDuStockage,
+    deleteImages: dependances.images.supprimerImagesProduit,
   }
   const lectures: LecturesCatalogue = {
     documents,
@@ -178,9 +174,7 @@ function pontStructure(dependances: DependancesAutomations): PontExecution {
   const effets: EffetsStructure = {
     reindexProducts: dependances.recherche.indexer,
     revalidateCategories: () => dependances.catalogue.revaliderStructure(),
-    deleteImage: async (url) => {
-      await supprimerImagesCategorieDuStockage([url])
-    },
+    deleteImage: dependances.images.supprimerImageStructure,
   }
   const arbre = memoise(() => lireStructure())
   const documentsParBranche = new Map<string, Promise<IndexableProduct[]>>()

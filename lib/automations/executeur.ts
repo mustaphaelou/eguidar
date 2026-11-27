@@ -1,7 +1,7 @@
 import { Prisma } from "@/lib/generated/prisma/client"
 import type { AutomationEvent } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
-import { type DependancesAutomations } from "@/lib/automations/actions"
+import { type DependancesAutomations } from "@/lib/automations/dependances"
 import { executerActionOuRedeclaration } from "@/lib/automations/execution-durable"
 import {
   actionAutomationSchema,

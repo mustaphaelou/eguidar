@@ -3,8 +3,9 @@ import type {
   EntreeEmailDigest,
   PortCatalogueAutomation,
   PortEmailsAutomation,
+  PortImagesAutomation,
   PortRechercheAutomation,
-} from "@/lib/automations/actions"
+} from "@/lib/automations/dependances"
 import type { OrderEmailSnapshot } from "@/lib/emails"
 import type { OrderStatus } from "@/lib/generated/prisma/client"
 import type { IndexableProduct } from "@/lib/index-projection"
@@ -142,6 +143,48 @@ export function creerPortCatalogueMemoire(options?: {
   return memoire
 }
 
+export interface PortImagesMemoire {
+  port: PortImagesAutomation
+  produit: string[]
+  structure: string[]
+  echouerProchainProduit(erreur: Error): void
+  echouerProchaineStructure(erreur: Error): void
+}
+
+export function creerPortImagesMemoire(): PortImagesMemoire {
+  let panneProduit: Error | null = null
+  let panneStructure: Error | null = null
+  const memoire: PortImagesMemoire = {
+    produit: [],
+    structure: [],
+    echouerProchainProduit(erreur) {
+      panneProduit = erreur
+    },
+    echouerProchaineStructure(erreur) {
+      panneStructure = erreur
+    },
+    port: {
+      async supprimerImagesProduit(urls) {
+        if (panneProduit) {
+          const erreur = panneProduit
+          panneProduit = null
+          throw erreur
+        }
+        memoire.produit.push(...urls)
+      },
+      async supprimerImageStructure(url) {
+        if (panneStructure) {
+          const erreur = panneStructure
+          panneStructure = null
+          throw erreur
+        }
+        memoire.structure.push(url)
+      },
+    },
+  }
+  return memoire
+}
+
 export function dependancesDeTest(
   maintenant: Date,
   morceaux: Partial<DependancesAutomations> = {}
@@ -150,6 +193,7 @@ export function dependancesDeTest(
     emails: creerPortEmailsMemoire().port,
     recherche: creerPortRechercheMemoire().port,
     catalogue: creerPortCatalogueMemoire().port,
+    images: creerPortImagesMemoire().port,
     maintenant,
     signaler: () => {},
     ...morceaux,
