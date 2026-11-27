@@ -76,11 +76,24 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 
 export const STATUTS_VALIDES = Object.keys(REGISTRE_STATUTS) as OrderStatus[]
 
+export type OrigineDeTransition = "administration" | "retour"
+
+const TRANSITIONS_PAR_ORIGINE: Readonly<
+  Record<
+    OrigineDeTransition,
+    Readonly<Record<OrderStatus, readonly OrderStatus[]>>
+  >
+> = {
+  administration: TRANSITIONS_ADMINISTRATION,
+  retour: TRANSITIONS_TOUTES_VOIES,
+}
+
 export function peutTransitionner(
   statut: OrderStatus,
-  cible: OrderStatus
+  cible: OrderStatus,
+  origine: OrigineDeTransition = "retour"
 ): boolean {
-  return TRANSITIONS_TOUTES_VOIES[statut].includes(cible)
+  return TRANSITIONS_PAR_ORIGINE[origine][statut].includes(cible)
 }
 
 export function transitionsDisponibles(

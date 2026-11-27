@@ -5,6 +5,7 @@ import {
 } from "@/lib/apres-ecriture"
 import type { OrderEmailSnapshot } from "@/lib/automations/charge"
 import { enregistrerFaits } from "@/lib/automations/evenements"
+import { sendOrderPlacedEmail, sendOrderStatusEmail } from "@/lib/emails"
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client"
 import {
   toIndexableProduct,
@@ -15,6 +16,10 @@ import {
   executer as executerCatalogue,
   type DocumentCatalogue,
 } from "@/lib/use-cases/apres-ecriture/catalogue"
+import {
+  executer as executerCommande,
+  type EffetsCommande,
+} from "@/lib/use-cases/apres-ecriture/commande"
 import {
   chaineDeLaStructure,
   demandeDePurgeCatalogue,
@@ -30,9 +35,16 @@ import {
 } from "@/lib/use-cases/mutation-squelette"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 import {
-  TRANSITIONS_ADMINISTRATION,
-  TRANSITIONS_TOUTES_VOIES,
+  peutTransitionner,
+  type OrigineDeTransition,
 } from "@/lib/statut-de-commande"
+
+export type { EffetsCommande, OrigineDeTransition }
+
+export interface SurchargesCommande {
+  email?: Partial<EffetsCommande>
+  stock?: Partial<EffetsStock>
+}
 
 export interface OutOfStockItem {
   productName: string
@@ -101,6 +113,11 @@ export interface EffetsStock {
   reindexProducts(produits: IndexableProduct[]): Promise<void>
   revalidateCatalog(produit: CatalogueEventProduct): Promise<void> | void
   purgeCatalogue(produit: CatalogueEventProduct): Promise<void> | void
+}
+
+const defaultOrderEffects: EffetsCommande = {
+  sendOrderPlacedEmail,
+  sendOrderStatusEmail,
 }
 
 const defaultStockEffects: EffetsStock = {
@@ -251,8 +268,6 @@ export interface CommandeTransitionnable extends CommandeEmailisable {
   user: { email: string }
 }
 
-export type OrigineDeTransition = "administration" | "retour"
-
 export interface DemandeDeTransition {
   commande: CommandeTransitionnable
   cible: OrderStatus
@@ -265,16 +280,6 @@ export interface TransitionEffectuee {
   commande: CommandeTransitionnable
   plan: PlanCommande
   ecriture: EcritureStock
-}
-
-const TRANSITIONS_PAR_ORIGINE: Readonly<
-  Record<
-    OrigineDeTransition,
-    Readonly<Record<OrderStatus, readonly OrderStatus[]>>
-  >
-> = {
-  administration: TRANSITIONS_ADMINISTRATION,
-  retour: TRANSITIONS_TOUTES_VOIES,
 }
 
 export function toOrderEmailSnapshot(
@@ -304,8 +309,7 @@ export async function effectuerLaTransition(
   demande: DemandeDeTransition
 ): Promise<TransitionEffectuee> {
   const { commande, cible, acteurId, origine } = demande
-  const transitions = TRANSITIONS_PAR_ORIGINE[origine]
-  if (!transitions[commande.status].includes(cible)) {
+  if (!peutTransitionner(commande.status, cible, origine)) {
     throw new InvalidOrderTransitionError(commande.status, cible)
   }
 
@@ -387,5 +391,20 @@ export async function exécuterStock(
       },
       journal
     )
+  }
+}
+
+export async function exécuterEffetsCommande(
+  effets: {
+    plan?: PlanCommande | null
+    ecriture: EcritureStock
+  },
+  surcharges?: SurchargesCommande,
+  journal: JournalEffetsPostCommit = journalEffetsConsole
+): Promise<void> {
+  await exécuterStock(effets.ecriture, surcharges?.stock ?? {}, journal)
+  if (effets.plan) {
+    const portsEmail = avecSurcharges(defaultOrderEffects, surcharges?.email)
+    await executerCommande(effets.plan, portsEmail, journal)
   }
 }

@@ -18,21 +18,16 @@ import {
   type MotifRetour,
   type QuantiteCommandee,
 } from "@/lib/retours"
-import { executer as executerCommande } from "@/lib/use-cases/apres-ecriture/commande"
 import {
   écrireLeStock,
   effectuerLaTransition,
-  exécuterStock,
+  exécuterEffetsCommande,
   reapprovisionner,
   verrouillerCommande,
-  type EffetsStock,
   type MouvementDeStock,
+  type SurchargesCommande,
 } from "@/lib/use-cases/commande"
-import {
-  avecSurcharges,
-  messageDeValidation,
-} from "@/lib/use-cases/mutation-squelette"
-import { defaultOrderEffects, type OrderEffects } from "@/lib/use-cases/orders"
+import { messageDeValidation } from "@/lib/use-cases/mutation-squelette"
 import { uniqueViolationIndex } from "@/lib/use-cases/unique-violation"
 import { UserFacingError } from "@/lib/use-cases/user-facing-error"
 
@@ -440,10 +435,9 @@ export async function refuserRetour(input: RefusDeRetour): Promise<RetourCree> {
 
 export async function recevoirRetour(
   input: ReceptionDeRetour,
-  surcharges?: { email?: Partial<OrderEffects>; stock?: Partial<EffetsStock> }
+  surcharges?: SurchargesCommande
 ): Promise<RetourRecu> {
   const reception = parseReception(input)
-  const effects = avecSurcharges(defaultOrderEffects, surcharges?.email)
 
   const { recu, plan, ecriture } = await prisma.$transaction(async (tx) => {
     const cible = await tx.return.findUnique({
@@ -584,7 +578,6 @@ export async function recevoirRetour(
     }
   })
 
-  await exécuterStock(ecriture, surcharges?.stock ?? {})
-  if (plan) await executerCommande(plan, effects)
+  await exécuterEffetsCommande({ plan, ecriture }, surcharges)
   return recu
 }

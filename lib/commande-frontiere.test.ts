@@ -318,4 +318,22 @@ describe("Commande — frontière de la déclaration de stock", () => {
     )
     expect(infractions(corpusCreation)).toEqual([cible])
   })
+
+  it("seuls commande.ts et ponts.ts importent apres-ecriture/commande, et retours.ts n'importe pas orders.ts", () => {
+    const importateurs = SOURCES.filter(({ source }) =>
+      importeDe(source, "lib/use-cases/apres-ecriture/commande")
+    )
+      .map(({ chemin }) => chemin)
+      .sort()
+    expect(importateurs).toEqual([
+      "lib/automations/ponts.ts",
+      "lib/use-cases/commande.ts",
+    ])
+    expect(
+      importeDe(
+        sourceDuDepot("lib/use-cases/retours.ts").source,
+        "lib/use-cases/orders"
+      )
+    ).toBe(false)
+  })
 })
