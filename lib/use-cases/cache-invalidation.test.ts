@@ -6,11 +6,13 @@ import type {
   ResultatPurgeEdge,
 } from "@/lib/purge-edge"
 import {
+  ANNONCE_TAG,
   BLOG_TAG,
   blogDetailTag,
   CATEGORY_TAG,
   categoryDetailTag,
   HOME_TAG,
+  invalidateAnnonce,
   invalidateCatalogue,
   invalidateLivraison,
   invalidateStructure,
@@ -64,6 +66,7 @@ describe("cache invalidation vocabulary", () => {
     expect(CATEGORY_TAG).toBe("categories")
     expect(HOME_TAG).toBe("home")
     expect(BLOG_TAG).toBe("blog")
+    expect(ANNONCE_TAG).toBe("annonce")
   })
 
   it("exposes the product detail tag builder", () => {
@@ -175,6 +178,10 @@ describe("demandeDePurge", () => {
 
   it("purge tout le catalogue quand la Structure change", () => {
     expect(demandeDePurge(tagsStructure())).toEqual({ kind: "tout" })
+  })
+
+  it("purge tout le site quand l'Annonce change", () => {
+    expect(demandeDePurge([ANNONCE_TAG])).toEqual({ kind: "tout" })
   })
 
   it("purge tout le catalogue pour le tag catalogue sans document précis", () => {
@@ -484,5 +491,57 @@ describe("invalidateLivraison", () => {
     expect(mockedRevalidatePath).toHaveBeenCalledTimes(2)
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/villes")
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/livraison")
+  })
+})
+
+describe("invalidateAnnonce", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("invalide le tag Annonce, le chemin admin et purge tout le site sur l'edge", async () => {
+    const purgeEdge = fauxPurgeEdge()
+
+    await invalidateAnnonce({ purgeEdge })
+
+    expect(mockedRevalidateTag).toHaveBeenCalledTimes(1)
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(ANNONCE_TAG, "max")
+    expect(mockedRevalidatePath).toHaveBeenCalledTimes(1)
+    expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/annonce")
+    expect(purgeEdge.purger).toHaveBeenCalledWith({ kind: "tout" })
+  })
+
+  it("ne lève pas quand la purge de l'edge échoue et la journalise", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const purgeEdge: PortPurgeEdge = {
+      purger: vi.fn(async (): Promise<ResultatPurgeEdge> => ({
+        ok: false,
+        erreur: { code: "erreur-purge", message: "HTTP 503" },
+      })),
+    }
+    try {
+      await expect(invalidateAnnonce({ purgeEdge })).resolves.toBeUndefined()
+      expect(mockedRevalidateTag).toHaveBeenCalledWith(ANNONCE_TAG, "max")
+      expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/annonce")
+      expect(warnSpy).toHaveBeenCalledOnce()
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("ne lève pas quand le transport de purge lève une erreur et la journalise", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const purgeEdge: PortPurgeEdge = {
+      purger: vi.fn(async () => {
+        throw new Error("réseau indisponible")
+      }),
+    }
+    try {
+      await expect(invalidateAnnonce({ purgeEdge })).resolves.toBeUndefined()
+      expect(warnSpy).toHaveBeenCalledOnce()
+      expect(warnSpy.mock.calls[0]?.[1]).toBeInstanceOf(Error)
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 })

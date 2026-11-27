@@ -77,7 +77,9 @@ function slugDuTag(tag: string, prefixe: string): string | null {
 }
 
 export function demandeDePurge(tags: readonly string[]): DemandePurge {
-  if (tags.includes(CATEGORY_TAG)) return { kind: "tout" }
+  if (tags.includes(CATEGORY_TAG) || tags.includes(ANNONCE_TAG)) {
+    return { kind: "tout" }
+  }
 
   const urls: string[] = []
   const ajouter = (url: string): void => {
@@ -179,4 +181,16 @@ export async function invalidateStructureDurable(): Promise<void> {
 export function invalidateLivraison(): void {
   revalidatePath("/admin/villes")
   revalidatePath("/admin/livraison")
+}
+
+export function revaliderAnnonce(): void {
+  revaliderTags([ANNONCE_TAG])
+  revalidatePath("/admin/annonce")
+}
+
+export async function invalidateAnnonce(
+  options: OptionsInvalidation = {}
+): Promise<void> {
+  revaliderAnnonce()
+  await purgerEdge(demandeDePurge([ANNONCE_TAG]), options.purgeEdge)
 }

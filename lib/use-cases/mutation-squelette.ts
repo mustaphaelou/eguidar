@@ -17,6 +17,7 @@ export const TYPES_ENTITE_EFFET_POST_COMMIT = [
   "categorie",
   "ville",
   "livraison",
+  "annonce",
 ] as const
 
 export type TypeEntiteEffetPostCommit =
