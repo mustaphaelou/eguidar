@@ -73,6 +73,7 @@ export const ModelName = {
   Refund: "Refund",
   DeliveryCity: "DeliveryCity",
   ShippingSettings: "ShippingSettings",
+  Annonce: "Annonce",
   Theme: "Theme",
   ArticleBlog: "ArticleBlog",
   ArticleBlogProduit: "ArticleBlogProduit",
@@ -378,6 +379,18 @@ export const ShippingSettingsScalarFieldEnum = {
 
 export type ShippingSettingsScalarFieldEnum =
   (typeof ShippingSettingsScalarFieldEnum)[keyof typeof ShippingSettingsScalarFieldEnum]
+
+export const AnnonceScalarFieldEnum = {
+  id: "id",
+  actif: "actif",
+  message: "message",
+  lienUrl: "lienUrl",
+  lienLibelle: "lienLibelle",
+  updatedAt: "updatedAt",
+} as const
+
+export type AnnonceScalarFieldEnum =
+  (typeof AnnonceScalarFieldEnum)[keyof typeof AnnonceScalarFieldEnum]
 
 export const ThemeScalarFieldEnum = {
   id: "id",

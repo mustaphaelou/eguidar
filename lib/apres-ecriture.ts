@@ -24,6 +24,7 @@ export type GenreEcriture =
   | "ville.modifiee"
   | "ville.supprimee"
   | "livraison.reglee"
+  | "annonce.reglee"
   | "image.texte-alternatif"
 
 export interface FaitApresEcriture<
@@ -187,6 +188,20 @@ export type ConsequenceLivraison = {
 }[EffetLivraison]
 
 export type PlanLivraison = PlanApresEcriture<ConsequenceLivraison>
+
+export type EffetAnnonce = "invalidation-cache"
+
+export interface ChargesAnnonce {
+  "invalidation-cache": { id: string }
+}
+
+export type ConsequenceAnnonce = {
+  [E in EffetAnnonce]: ConsequenceApresEcriture<E, ChargesAnnonce[E]> & {
+    payload: ChargesAnnonce[E]
+  }
+}[EffetAnnonce]
+
+export type PlanAnnonce = PlanApresEcriture<ConsequenceAnnonce>
 
 export type FaitsApresEcriture = Record<string, unknown>
 
@@ -831,6 +846,25 @@ const livraisonReglee: DeclarationPour<"livraison.reglee"> = (f) => {
   )
 }
 
+const annonceReglee: DeclarationPour<"annonce.reglee"> = (f) => {
+  const annonceId = String(f.annonceId ?? "default")
+  return {
+    faits: [],
+    consequences: [
+      consequence(
+        "invalidation-cache",
+        { type: "annonce", id: annonceId },
+        "invalidation du cache de l'Annonce",
+        {
+          durable: false,
+          reparation: "TTL",
+          payload: { id: annonceId },
+        }
+      ),
+    ],
+  }
+}
+
 const imageTexteAlternatif: DeclarationPour<"image.texte-alternatif"> = (
   f
 ) => ({
@@ -861,6 +895,7 @@ export type PlansTypés = {
   "ville.modifiee": PlanLivraison
   "ville.supprimee": PlanLivraison
   "livraison.reglee": PlanLivraison
+  "annonce.reglee": PlanAnnonce
 }
 
 export type PlanParGenre = {
@@ -888,6 +923,7 @@ const REGISTRE: { [G in GenreEcriture]: DeclarationPour<G> } = {
   "ville.modifiee": villeModifiee,
   "ville.supprimee": villeSupprimee,
   "livraison.reglee": livraisonReglee,
+  "annonce.reglee": annonceReglee,
   "image.texte-alternatif": imageTexteAlternatif,
 }
 
@@ -971,6 +1007,7 @@ export type FaitsVilleCreee = { villeId: string | number }
 export type FaitsVilleModifiee = { villeId: string | number }
 export type FaitsVilleSupprimee = { villeId: string | number }
 export type FaitsLivraisonReglee = { livraisonId?: string | number }
+export type FaitsAnnonceReglee = { annonceId?: string | number }
 export type FaitsImageTexteAlternatif = {
   produits?: readonly IdentiteProduitCatalogue[]
 }
@@ -990,6 +1027,7 @@ export type FaitsParGenre = {
   "ville.modifiee": FaitsVilleModifiee
   "ville.supprimee": FaitsVilleSupprimee
   "livraison.reglee": FaitsLivraisonReglee
+  "annonce.reglee": FaitsAnnonceReglee
   "image.texte-alternatif": FaitsImageTexteAlternatif
 }
 

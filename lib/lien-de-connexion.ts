@@ -27,7 +27,7 @@ function decodePercentEscapes(value: string): string {
   )
 }
 
-function safeDestination(raw: string | null | undefined): string | null {
+export function safeDestination(raw: string | null | undefined): string | null {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null
   const decoded = decodePercentEscapes(raw)
   if (decoded.startsWith("//") || UNSAFE_DESTINATION_CHARS.test(decoded)) {

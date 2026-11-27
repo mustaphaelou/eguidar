@@ -142,6 +142,11 @@ export type DeliveryCity = Prisma.DeliveryCityModel
  */
 export type ShippingSettings = Prisma.ShippingSettingsModel
 /**
+ * Model Annonce
+ *
+ */
+export type Annonce = Prisma.AnnonceModel
+/**
  * Model Theme
  *
  */

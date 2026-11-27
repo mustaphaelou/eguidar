@@ -8,6 +8,7 @@ L'habillage reprend celui d'apple.com : la palette, la typographie et le Voile d
 
 - **Bandeau de navigation**
 - **Feuille de navigation**
+- **Annonce**
 - **Pied de page**
 - **Voile dépoli**
 - **Voile sombre**
@@ -152,6 +153,10 @@ _Avoid_: header, navbar, barre de navigation, barre du haut
 **Feuille de navigation**:
 La feuille qui se déploie sous le **Bandeau de navigation** par-dessus un **Voile sombre** lorsque le Client ou le Visiteur explore une **Structure** racine (ses sous-catégories, ses marques et ses accès de tri et de **Catalogue**) ou ouvre la **Recherche**. Elle porte le même matériau **Voile dépoli** que l'**Aperçu du Panier** et s'exclut mutuellement avec lui. Distincte du **Panneau** de l'accueil.
 _Avoid_: panneau (réservé aux Panneaux de l'accueil), rideau, mega-menu, flyout, dropdown
+
+**Annonce**:
+Le ruban d'information unique affiché sur toute page de la boutique, directement sous le **Bandeau de navigation**, lorsqu'il est actif dans l'**Administration**. Il porte un message court et, en option, un lien interne avec son libellé — toujours fournis ensemble ou tous deux absents — ; il reste visible tant qu'il est actif, sans bouton de fermeture, et défile avec la page pendant que le **Bandeau de navigation** reste fixé en tête.
+_Avoid_: banner, bannière, bandeau promo, barre d'annonce
 
 **Pied de page**:
 La surface en bas des pages de la boutique qui porte son annuaire : quatre sections — « La boutique », « Mon compte », « Aide » et « La maison » — déclarées comme données, rendues comme des disclosures natives ouvertes dès le HTML serveur, sans composant client, et réparties en colonnes égales sur les écrans larges. Le tout est un repère `contentinfo` nommé, ses colonnes un repère de navigation au libellé français, et chaque destination n'y figure qu'une fois. Au-dessus de la rangée légale, la bande d'assurance porte dans la recette du petit texte la tagline, le paiement à la livraison et la TVA, les frais de livraison, et le téléphone en lien `tel:`. La rangée légale, déclarée à part, ne porte que le copyright, la licence MIT, Conditions & livraison et Suppression des données.

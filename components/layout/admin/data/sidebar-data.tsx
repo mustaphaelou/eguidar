@@ -6,6 +6,7 @@ import {
   DeliveryTruck01Icon,
   Image01Icon,
   MapsLocation01Icon,
+  Megaphone01Icon,
   Robot01Icon,
   ShoppingBasket02Icon,
   StoreManagement02Icon,
@@ -54,6 +55,11 @@ export const navSections: NavSection[] = [
         title: "Livraison",
         url: "/admin/livraison",
         icon: DeliveryTruck01Icon,
+      },
+      {
+        title: "Annonce",
+        url: "/admin/annonce",
+        icon: Megaphone01Icon,
       },
       {
         title: "Automatisations",

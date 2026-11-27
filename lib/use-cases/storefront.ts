@@ -1,5 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache"
 
+import { apparierLienAnnonce } from "@/lib/annonce-contrat"
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
 import type { ImageProduitGalerie } from "@/lib/images-produit/galerie"
@@ -14,6 +15,7 @@ import {
   totalVariantStock,
 } from "@/lib/product-metrics"
 import {
+  ANNONCE_TAG,
   CATEGORY_TAG,
   categoryDetailTag,
   HOME_TAG,
@@ -301,6 +303,37 @@ export async function getCategoryPageData(
   return fetchCategoryPageData(slug)
 }
 
+export interface AnnonceActive {
+  message: string
+  lienUrl: string | null
+  lienLibelle: string | null
+}
+
+export async function fetchAnnonceActive(): Promise<AnnonceActive | null> {
+  const annonce = await prisma.annonce.findUnique({
+    where: { id: "default" },
+    select: {
+      actif: true,
+      message: true,
+      lienUrl: true,
+      lienLibelle: true,
+    },
+  })
+
+  if (!annonce || !annonce.actif) return null
+
+  const message = annonce.message.trim()
+  if (message === "") return null
+
+  const lien = apparierLienAnnonce(annonce.lienUrl, annonce.lienLibelle)
+
+  return {
+    message,
+    lienUrl: lien?.url ?? null,
+    lienLibelle: lien?.libelle ?? null,
+  }
+}
+
 export async function getProductPageData(
   slug: string
 ): Promise<ProductDetailData | null> {
@@ -308,4 +341,11 @@ export async function getProductPageData(
   cacheTag(PRODUCT_TAG, productDetailTag(slug), CATEGORY_TAG)
   cacheLife(STORE_CACHE_LIFE)
   return fetchProductPageData(slug)
+}
+
+export async function getAnnonceActive(): Promise<AnnonceActive | null> {
+  "use cache: remote"
+  cacheTag(ANNONCE_TAG)
+  cacheLife(NAVIGATION_CACHE_LIFE)
+  return fetchAnnonceActive()
 }

@@ -17,6 +17,7 @@ const SOURCES = sourcesDeProduction(
 )
 
 const ACTIONS_SURVEILLEES = [
+  "app/admin/annonce/actions.ts",
   "app/admin/automatisations/actions.ts",
   "app/admin/categories/actions.ts",
   "app/admin/commandes/actions.ts",
