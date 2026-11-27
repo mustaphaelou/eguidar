@@ -347,6 +347,6 @@ export async function getProductPageData(
 export async function getAnnonceActive(): Promise<AnnonceActive | null> {
   "use cache: remote"
   cacheTag(ANNONCE_TAG)
-  cacheLife(STORE_CACHE_LIFE)
+  cacheLife(NAVIGATION_CACHE_LIFE)
   return fetchAnnonceActive()
 }

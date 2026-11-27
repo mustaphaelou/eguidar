@@ -505,7 +505,7 @@ describe("invalidateAnnonce", () => {
     await invalidateAnnonce({ purgeEdge })
 
     expect(mockedRevalidateTag).toHaveBeenCalledTimes(1)
-    expect(mockedRevalidateTag).toHaveBeenCalledWith(ANNONCE_TAG, "max")
+    expect(mockedRevalidateTag).toHaveBeenCalledWith(ANNONCE_TAG, { expire: 0 })
     expect(mockedRevalidatePath).toHaveBeenCalledTimes(1)
     expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/annonce")
     expect(purgeEdge.purger).toHaveBeenCalledWith({ kind: "tout" })
@@ -521,7 +521,9 @@ describe("invalidateAnnonce", () => {
     }
     try {
       await expect(invalidateAnnonce({ purgeEdge })).resolves.toBeUndefined()
-      expect(mockedRevalidateTag).toHaveBeenCalledWith(ANNONCE_TAG, "max")
+      expect(mockedRevalidateTag).toHaveBeenCalledWith(ANNONCE_TAG, {
+        expire: 0,
+      })
       expect(mockedRevalidatePath).toHaveBeenCalledWith("/admin/annonce")
       expect(warnSpy).toHaveBeenCalledOnce()
     } finally {
