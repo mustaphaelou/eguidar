@@ -21,6 +21,7 @@ import cycleVieImageProduitParDefaut, {
 import type { FaitsFormulaireProduit } from "@/lib/formulaire-produit"
 import {
   entreeGalerieImageProduitSchema,
+  entreesPersisteesDepuisGalerie,
   identifiantsBrouillonsGalerie,
   LIMITE_IMAGES_PRODUIT,
   normaliserTexteAlternatif,
@@ -54,6 +55,7 @@ import {
 } from "@/lib/images-produit/r2"
 import {
   enregistrerImagesProduit,
+  lireGalerieProduit,
   type EntreeRegistreImageProduit,
 } from "@/lib/use-cases/images-produit"
 import type {
@@ -1396,16 +1398,8 @@ export async function getAdminProduct(
   })
   if (!produit) return null
 
-  const urls = urlsImagesProduit(produit.images)
-  const registre =
-    urls.length > 0
-      ? await prisma.imageProduit.findMany({
-          where: { publicUrl: { in: urls } },
-          select: { publicUrl: true, alt: true },
-        })
-      : []
-  const altParUrl = new Map(
-    registre.map((ligne) => [ligne.publicUrl, ligne.alt])
+  const images = entreesPersisteesDepuisGalerie(
+    await lireGalerieProduit(produit.images)
   )
 
   return {
@@ -1420,12 +1414,7 @@ export async function getAdminProduct(
     featuredOrder: produit.featuredOrder,
     freeShipping: produit.freeShipping,
     specs: specificationsProduit(produit.specs),
-    images: urls.map((url) => {
-      const alt = normaliserTexteAlternatif(altParUrl.get(url))
-      return alt
-        ? { kind: "persistee" as const, url, alt }
-        : { kind: "persistee" as const, url }
-    }),
+    images,
     variants: produit.variants.map((variante) => ({
       id: variante.id,
       name: variante.name,

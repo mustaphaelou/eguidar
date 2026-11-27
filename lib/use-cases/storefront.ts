@@ -2,10 +2,7 @@ import { cacheLife, cacheTag } from "next/cache"
 
 import { projeterCarteProduit, type CarteProduit } from "@/lib/carte-produit"
 import { prisma } from "@/lib/db"
-import {
-  normaliserTexteAlternatif,
-  type ImageProduitGalerie,
-} from "@/lib/images-produit/galerie"
+import type { ImageProduitGalerie } from "@/lib/images-produit/galerie"
 import {
   parametresDeSlug,
   type ParametresDeSlug,
@@ -15,7 +12,6 @@ import {
   prixVariante,
   specificationsProduit,
   totalVariantStock,
-  urlsImagesProduit,
 } from "@/lib/product-metrics"
 import {
   CATEGORY_TAG,
@@ -24,6 +20,7 @@ import {
   PRODUCT_TAG,
   productDetailTag,
 } from "@/lib/use-cases/cache-invalidation"
+import { lireGalerieProduit } from "@/lib/use-cases/images-produit"
 import {
   lireStructure,
   type NoeudAccueil,
@@ -222,17 +219,7 @@ export async function fetchProductPageData(
     ? (await lireStructure()).filAriane(product.category.id)
     : []
 
-  const urls = urlsImagesProduit(product.images)
-  const registre =
-    urls.length > 0
-      ? await prisma.imageProduit.findMany({
-          where: { publicUrl: { in: urls } },
-          select: { publicUrl: true, alt: true },
-        })
-      : []
-  const altParUrl = new Map(
-    registre.map((ligne) => [ligne.publicUrl, ligne.alt])
-  )
+  const images = await lireGalerieProduit(product.images)
 
   return {
     id: product.id,
@@ -241,10 +228,7 @@ export async function fetchProductPageData(
     brand: product.brand,
     description: product.description,
     specs: specificationsProduit(product.specs),
-    images: urls.map((url) => ({
-      url,
-      alt: normaliserTexteAlternatif(altParUrl.get(url)),
-    })),
+    images,
     minPrice: minVariantPrice(product.price, product.variants),
     freeShipping: product.freeShipping,
     category: product.category

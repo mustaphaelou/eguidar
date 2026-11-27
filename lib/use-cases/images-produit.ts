@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import {
   normaliserTexteAlternatif,
   type EntreeBibliothequeImageProduit,
+  type ImageProduitGalerie,
 } from "@/lib/images-produit/galerie"
 import { urlsImagesProduit } from "@/lib/product-metrics"
 import {
@@ -136,6 +137,24 @@ async function chargerLesUsages(): Promise<Map<string, ProduitQuiUtilise[]>> {
     }
   }
   return usages
+}
+
+export async function lireGalerieProduit(
+  images: unknown
+): Promise<ImageProduitGalerie[]> {
+  const urls = urlsImagesProduit(images)
+  if (urls.length === 0) return []
+  const registre = await prisma.imageProduit.findMany({
+    where: { publicUrl: { in: urls } },
+    select: { publicUrl: true, alt: true },
+  })
+  const altParUrl = new Map(
+    registre.map((ligne) => [ligne.publicUrl, ligne.alt])
+  )
+  return urls.map((url) => ({
+    url,
+    alt: normaliserTexteAlternatif(altParUrl.get(url)),
+  }))
 }
 
 export async function enregistrerImagesProduit(

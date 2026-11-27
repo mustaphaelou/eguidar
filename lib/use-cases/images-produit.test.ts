@@ -18,6 +18,7 @@ import {
   ImageProduitIntrouvableError,
   ImageProduitSuppressionImpossibleError,
   enregistrerImagesProduit,
+  lireGalerieProduit,
   listerImagesPourGalerie,
   listerImagesProduit,
   mettreAJourTexteAlternatif,
@@ -153,6 +154,52 @@ describe("registre des Images produit", () => {
     )
 
     expect(await lignes()).toHaveLength(1)
+  })
+})
+
+describe("hydratation de la Galerie produit depuis le Registre", () => {
+  it("hydrate les Textes alternatifs dans l'ordre des URL, conserve les doublons et normalise les blancs", async () => {
+    await prisma.imageProduit.createMany({
+      data: [
+        {
+          publicUrl: URL_A,
+          mimeType: "image/webp",
+          byteSize: 100,
+          width: 400,
+          height: 300,
+          alt: "  Vue de face  ",
+        },
+        {
+          publicUrl: URL_B,
+          mimeType: "image/png",
+          byteSize: 100,
+          width: 400,
+          height: 300,
+          alt: "   ",
+        },
+      ],
+    })
+
+    const galerie = await lireGalerieProduit([URL_B, URL_A, URL_C, URL_A, 42])
+
+    expect(galerie).toEqual([
+      { url: URL_B, alt: null },
+      { url: URL_A, alt: "Vue de face" },
+      { url: URL_C, alt: null },
+      { url: URL_A, alt: "Vue de face" },
+    ])
+  })
+
+  it("rend une galerie vide sans interroger la base pour une colonne vide ou mal formée", async () => {
+    const espion = vi.spyOn(prisma.imageProduit, "findMany")
+
+    await expect(lireGalerieProduit([])).resolves.toEqual([])
+    await expect(lireGalerieProduit(null)).resolves.toEqual([])
+    await expect(lireGalerieProduit("invalide")).resolves.toEqual([])
+    await expect(lireGalerieProduit([123, null])).resolves.toEqual([])
+
+    expect(espion).not.toHaveBeenCalled()
+    espion.mockRestore()
   })
 })
 
